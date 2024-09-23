@@ -1,5 +1,7 @@
 """Solplanet sensors platform."""
 
+import re
+
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.const import (
     UnitOfApparentPower,
@@ -210,6 +212,8 @@ class SolplanetInverterSensor(CoordinatorEntity, Entity):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
+        sanitized_entity_id = self._sanitize_string_for_entity_id(f"{isn}_{name}")
+        self.entity_id = f"sensor.solplanet_{sanitized_entity_id}"
         self._isn = isn
         self._multiply = multiply
         self._name = name
@@ -218,7 +222,7 @@ class SolplanetInverterSensor(CoordinatorEntity, Entity):
         self._unit = unit
         self._device_class = device_class
         self._state_class = state_class
-        self._unique_id = f"{key}_{item_index}_{isn}_solplanet_inverter"
+        self._unique_id = f"solplanet_{isn}_{key}_{item_index}"
 
     @property
     def name(self) -> str:
@@ -259,3 +263,9 @@ class SolplanetInverterSensor(CoordinatorEntity, Entity):
         return {
             "identifiers": {(DOMAIN, self._isn)},
         }
+
+    def _sanitize_string_for_entity_id(self, input_string: str) -> str:
+        sanitized_string = input_string.lower()
+        sanitized_string = re.sub(r"[^a-z0-9_]+", "_", sanitized_string)
+        sanitized_string = re.sub(r"_+", "_", sanitized_string)
+        return sanitized_string.strip("_")
