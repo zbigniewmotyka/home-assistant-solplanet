@@ -11,6 +11,7 @@ on:
 
 jobs:
   hacs:
+    if: false
     name: HACS Action
     runs-on: "ubuntu-latest"
     steps:
