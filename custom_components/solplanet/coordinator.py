@@ -13,7 +13,7 @@ from .const import DOMAIN
 _LOGGER = logging.getLogger(__name__)
 
 
-class SolplanetInverterDataCoordinator(DataUpdateCoordinator):
+class SolplanetInverterDataUpdateCoordinator(DataUpdateCoordinator):
     """Solplanet coordinator."""
 
     def __init__(self, hass: HomeAssistant, api: SolplanetApi) -> None:
