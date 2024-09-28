@@ -63,6 +63,7 @@ class SolplanetInverterSensor(
         self._isn = isn
         self._attr_unique_id = f"solplanet_{isn}_{description.data_field_name}_{description.data_field_index}"
         self._attr_native_value = self._get_value_from_coordinator()
+        self._attr_entity_registry_enabled_default = self._attr_native_value is not None
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -175,7 +176,7 @@ def create_inverter_entites_description(
         ),
     ]
 
-    for i in range(len(data.vac)):
+    for i in range(len(data.vac or [])):
         sensors.append(  # noqa: PERF401
             SolplanetSensorEntityDescription(
                 key=f"{isn}_vac_{i}",
@@ -189,7 +190,7 @@ def create_inverter_entites_description(
             ),
         )
 
-    for i in range(len(data.iac)):
+    for i in range(len(data.iac or [])):
         sensors.append(  # noqa: PERF401
             SolplanetSensorEntityDescription(
                 key=f"{isn}_iac_{i}",
@@ -203,7 +204,7 @@ def create_inverter_entites_description(
             ),
         )
 
-    for i in range(len(data.vpv)):
+    for i in range(len(data.vpv or [])):
         sensors.append(  # noqa: PERF401
             SolplanetSensorEntityDescription(
                 key=f"{isn}_vpv_{i}",
@@ -217,7 +218,7 @@ def create_inverter_entites_description(
             ),
         )
 
-    for i in range(len(data.ipv)):
+    for i in range(len(data.ipv or [])):
         sensors.append(  # noqa: PERF401
             SolplanetSensorEntityDescription(
                 key=f"{isn}_ipv_{i}",
