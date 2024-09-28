@@ -30,7 +30,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
     """
 
-    client = SolplanetClient(data[CONF_HOST])
+    client = SolplanetClient(data[CONF_HOST], hass)
     api = SolplanetApi(client)
 
     try:

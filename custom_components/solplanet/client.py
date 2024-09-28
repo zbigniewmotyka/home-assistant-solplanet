@@ -3,7 +3,8 @@
 from dataclasses import dataclass
 import logging
 
-import aiohttp
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 __author__ = "Zbigniew Motyka"
 __copyright__ = "Zbigniew Motyka"
@@ -108,10 +109,11 @@ class GetInverterInfoResponse:
 class SolplanetClient:
     """Solplanet http client."""
 
-    def __init__(self, host: str) -> None:
+    def __init__(self, host: str, hass: HomeAssistant) -> None:
         """Create instance of solplanet http client."""
         self.host = host
         self.port = 8484
+        self.session = async_get_clientsession(hass)
 
     def get_url(self, endpoint: str) -> str:
         """Get URL for specified endpoint."""
@@ -119,11 +121,8 @@ class SolplanetClient:
 
     async def get(self, endpoint: str):
         """Make get request to specified endpoint."""
-        session = aiohttp.ClientSession()
-        response = await session.get(self.get_url(endpoint))
-        result = await response.json()
-        await session.close()
-        return result
+        response = await self.session.get(self.get_url(endpoint))
+        return await response.json()
 
 
 class SolplanetApi:

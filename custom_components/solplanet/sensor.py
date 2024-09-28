@@ -19,7 +19,7 @@ from homeassistant.const import (
     UnitOfTemperature,
     UnitOfTime,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -44,6 +44,8 @@ class SolplanetInverterSensor(
 ):
     """Representation of a Solplanet Inverter sensor."""
 
+    entity_description: SolplanetSensorEntityDescription
+
     def __init__(
         self,
         description: SolplanetSensorEntityDescription,
@@ -60,9 +62,24 @@ class SolplanetInverterSensor(
         self.entity_id = f"sensor.solplanet_{sanitized_entity_id}"
         self._isn = isn
         self._attr_unique_id = f"solplanet_{isn}_{description.data_field_name}_{description.data_field_index}"
+        self._attr_native_value = self._get_value_from_coordinator()
 
     @property
-    def state(self) -> float:
+    def device_info(self) -> DeviceInfo:
+        """Return device information about this sensor."""
+        return {
+            "identifiers": {(DOMAIN, self._isn)},
+        }
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        # Set the native value here so we can use it in available property
+        # without having to recalculate it
+        self._attr_native_value = self._get_value_from_coordinator()
+        super()._handle_coordinator_update()
+
+    def _get_value_from_coordinator(self) -> float:
         """Return the state of the sensor."""
         data = getattr(
             self.coordinator.data[self._isn], self.entity_description.data_field_name
@@ -75,13 +92,6 @@ class SolplanetInverterSensor(
             data = data * self.entity_description.data_field_value_multiply
 
         return data
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device information about this sensor."""
-        return {
-            "identifiers": {(DOMAIN, self._isn)},
-        }
 
     def _sanitize_string_for_entity_id(self, input_string: str) -> str:
         sanitized_string = input_string.lower()
