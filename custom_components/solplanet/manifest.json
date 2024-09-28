@@ -1,14 +1,12 @@
 {
   "domain": "solplanet",
   "name": "Solplanet",
-  "codeowners": [
-    "@zbigniewmotyka"
-  ],
+  "codeowners": ["@zbigniewmotyka"],
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/zbigniewmotyka/solplanet",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/zbigniewmotyka/solplanet/issues",
-  "requirements": ["aiohttp>=3.8.1"],
-  "version": "0.0.2"
+  "requirements": [],
+  "version": "0.0.3"
 }

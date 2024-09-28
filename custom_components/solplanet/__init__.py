@@ -5,6 +5,7 @@ from __future__ import annotations
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant
+import homeassistant.helpers.config_validation as cv
 import homeassistant.helpers.device_registry as dr
 
 from .client import SolplanetApi, SolplanetClient
@@ -12,6 +13,7 @@ from .const import DOMAIN
 from .coordinator import SolplanetInverterDataUpdateCoordinator
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
+CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
 
 type SolplanetConfigEntry = ConfigEntry[SolplanetApi]  # noqa: F821
 
@@ -26,7 +28,7 @@ async def async_setup(hass: HomeAssistant, entry: SolplanetConfigEntry) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) -> bool:
     """Set up Solplanet from a config entry."""
 
-    client = SolplanetClient(entry.data[CONF_HOST])
+    client = SolplanetClient(entry.data[CONF_HOST], hass)
     api = SolplanetApi(client)
 
     coordinator = SolplanetInverterDataUpdateCoordinator(hass, api)
