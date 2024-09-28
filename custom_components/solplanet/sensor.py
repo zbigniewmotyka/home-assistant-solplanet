@@ -186,7 +186,7 @@ def create_inverter_entites_description(
         sensors.append(  # noqa: PERF401
             SolplanetSensorEntityDescription(
                 key=f"{isn}_vac_{i}",
-                name="AC voltage phase " + str(i + 1),
+                name=f"AC phase {i + 1!s} voltage",
                 data_field_path=["vac", i],
                 data_field_value_multiply=0.1,
                 native_unit_of_measurement=UnitOfElectricPotential.VOLT,
@@ -199,7 +199,7 @@ def create_inverter_entites_description(
         sensors.append(  # noqa: PERF401
             SolplanetSensorEntityDescription(
                 key=f"{isn}_iac_{i}",
-                name="AC current phase " + str(i + 1),
+                name=f"AC phase {i + 1!s} current",
                 data_field_path=["iac", i],
                 data_field_value_multiply=0.1,
                 native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
@@ -212,7 +212,7 @@ def create_inverter_entites_description(
         sensors.append(  # noqa: PERF401
             SolplanetSensorEntityDescription(
                 key=f"{isn}_vpv_{i}",
-                name="DC voltage string " + str(i + 1),
+                name=f"MPPT {i + 1!s} voltage",
                 data_field_path=["vpv", i],
                 data_field_value_multiply=0.1,
                 native_unit_of_measurement=UnitOfElectricPotential.VOLT,
@@ -225,7 +225,7 @@ def create_inverter_entites_description(
         sensors.append(  # noqa: PERF401
             SolplanetSensorEntityDescription(
                 key=f"{isn}_ipv_{i}",
-                name="DC current string " + str(i + 1),
+                name=f"MPPT {i + 1!s} current",
                 data_field_path=["ipv", i],
                 data_field_value_multiply=0.01,
                 native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
