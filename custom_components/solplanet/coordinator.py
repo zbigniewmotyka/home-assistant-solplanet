@@ -31,17 +31,16 @@ class SolplanetInverterDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self):
         """Fetch data from REST API."""
-        _LOGGER.debug("Updating data")
         try:
-            async with asyncio.timeout(10):
-                inverters = await self.__api.get_inverter_info()
-                isns = [x.isn for x in inverters.inv]
-                inverters_data = await asyncio.gather(
-                    *[self.__api.get_inverter_data(isn) for isn in isns]
-                )
-                return {isns[i]: inverters_data[i] for i in range(len(isns))}
+            _LOGGER.debug("Updating data")
+            inverters = await self.__api.get_inverter_info()
+            isns = [x.isn for x in inverters.inv]
+            inverters_data = await asyncio.gather(
+                *[self.__api.get_inverter_data(isn) for isn in isns]
+            )
+            _LOGGER.debug("Data updated")
+            return {isns[i]: inverters_data[i] for i in range(len(isns))}
 
-        except TimeoutError as err:
-            raise UpdateFailed("Timeout fetching data from API") from err
         except Exception as err:
+            _LOGGER.exception("Exception occurred during data update")
             raise UpdateFailed(f"Error fetching data from API: {err}") from err
