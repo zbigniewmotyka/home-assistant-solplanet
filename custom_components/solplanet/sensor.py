@@ -14,6 +14,7 @@ from homeassistant.const import (
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
     UnitOfEnergy,
+    UnitOfFrequency,
     UnitOfPower,
     UnitOfReactivePower,
     UnitOfTemperature,
@@ -115,6 +116,21 @@ def create_inverter_entites_description(
 
     sensors = [
         SolplanetSensorEntityDescription(
+            key=f"{isn}_err",
+            name="Error code",
+            data_field_path=["err"],
+            device_class=SensorDeviceClass.ENUM,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_fac",
+            name="Frequency",
+            data_field_path=["fac"],
+            data_field_value_multiply=0.01,
+            native_unit_of_measurement=UnitOfFrequency.HERTZ,
+            device_class=SensorDeviceClass.FREQUENCY,
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        SolplanetSensorEntityDescription(
             key=f"{isn}_pac",
             name="Power",
             data_field_path=["pac"],
@@ -142,6 +158,7 @@ def create_inverter_entites_description(
             key=f"{isn}_pf",
             name="Power factor",
             data_field_path=["pf"],
+            data_field_value_multiply=0.01,
             device_class=SensorDeviceClass.POWER_FACTOR,
             state_class=SensorStateClass.MEASUREMENT,
         ),

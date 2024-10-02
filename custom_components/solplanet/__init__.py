@@ -9,7 +9,7 @@ import homeassistant.helpers.config_validation as cv
 import homeassistant.helpers.device_registry as dr
 
 from .client import SolplanetApi, SolplanetClient
-from .const import DOMAIN
+from .const import DOMAIN, MANUFACTURER
 from .coordinator import SolplanetInverterDataUpdateCoordinator
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
@@ -44,9 +44,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
     for inverter_info in inverters_info.inv:
         device_registry.async_get_or_create(
             config_entry_id=entry.entry_id,
-            identifiers={(DOMAIN, inverter_info.isn)},
-            name=inverter_info.model + " (" + inverter_info.isn + ")",
+            identifiers={(DOMAIN, inverter_info.isn or "")},
+            name=f"{inverter_info.model} ({inverter_info.isn})",
             model=inverter_info.model,
+            manufacturer=MANUFACTURER,
+            serial_number=inverter_info.isn,
+            sw_version=f"Master: {inverter_info.msw}, Slave: {inverter_info.ssw}, Security: {inverter_info.tsw}",
         )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
