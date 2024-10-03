@@ -1,7 +1,9 @@
 """Solplanet sensors platform."""
 
+from collections import abc
 from dataclasses import dataclass
 import re
+from typing import Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -37,6 +39,8 @@ class SolplanetSensorEntityDescription(SensorEntityDescription):
 
     data_field_path: list[str | int]
     data_field_value_multiply: float | None = None
+    data_field_value_mapper: abc.Callable[[Any], Any] | None = None
+    unique_id_suffix: str | None = None
 
 
 class SolplanetInverterSensor(
@@ -55,15 +59,18 @@ class SolplanetInverterSensor(
         """Initialize the sensor."""
         super().__init__(coordinator)
         self.entity_description = description
+        unique_id_suffix = (
+            description.unique_id_suffix
+            if description.unique_id_suffix
+            else "_".join(str(x) for x in description.data_field_path)
+        )
 
         sanitized_entity_id = self._sanitize_string_for_entity_id(
             f"{isn}_{description.name}"
         )
         self.entity_id = f"sensor.solplanet_{sanitized_entity_id}"
         self._isn = isn
-        self._attr_unique_id = (
-            f"solplanet_{isn}_{'_'.join(str(x) for x in description.data_field_path)}"
-        )
+        self._attr_unique_id = f"solplanet_{isn}_{unique_id_suffix}"
         self._attr_native_value = self._get_value_from_coordinator()
         self._attr_entity_registry_enabled_default = self._attr_native_value is not None
 
@@ -96,6 +103,9 @@ class SolplanetInverterSensor(
             else:
                 return None
 
+        if self.entity_description.data_field_value_mapper is not None:
+            data = self.entity_description.data_field_value_mapper(data)
+
         if self.entity_description.data_field_value_multiply is not None:
             data = data * self.entity_description.data_field_value_multiply
 
@@ -106,6 +116,17 @@ class SolplanetInverterSensor(
         sanitized_string = re.sub(r"[^a-z0-9_]+", "_", sanitized_string)
         sanitized_string = re.sub(r"_+", "_", sanitized_string)
         return sanitized_string.strip("_")
+
+
+def _create_mppt_power_mapper(index: int) -> abc.Callable:
+    def map_mppt_power(data: GetInverterDataResponse) -> float | None:
+        if data.ipv and data.vpv:
+            current = data.ipv[index] or 0
+            voltage = data.vpv[index] or 0
+            return current * voltage
+        return None
+
+    return map_mppt_power
 
 
 def create_inverter_entites_description(
@@ -247,6 +268,21 @@ def create_inverter_entites_description(
                 data_field_value_multiply=0.01,
                 native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
                 device_class=SensorDeviceClass.CURRENT,
+                state_class=SensorStateClass.MEASUREMENT,
+            ),
+        )
+
+    for i in range(len(data.ipv or [])):
+        sensors.append(  # noqa: PERF401
+            SolplanetSensorEntityDescription(
+                key=f"{isn}_mppt_power_{i}",
+                name=f"MPPT {i + 1!s} power",
+                data_field_path=[],
+                data_field_value_mapper=_create_mppt_power_mapper(i),
+                data_field_value_multiply=0.001,
+                unique_id_suffix=f"mppt_{i}_power",
+                native_unit_of_measurement=UnitOfPower.WATT,
+                device_class=SensorDeviceClass.POWER,
                 state_class=SensorStateClass.MEASUREMENT,
             ),
         )
