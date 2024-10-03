@@ -121,7 +121,9 @@ class SolplanetInverterSensor(
 def _create_mppt_power_mapper(index: int) -> abc.Callable:
     def map_mppt_power(data: GetInverterDataResponse) -> float | None:
         if data.ipv and data.vpv:
-            return data.ipv[index] * data.vpv[index]
+            current = data.ipv[index] or 0
+            voltage = data.vpv[index] or 0
+            return current * voltage
         return None
 
     return map_mppt_power
