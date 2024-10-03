@@ -123,7 +123,7 @@ class SolplanetClient:
     async def get(self, endpoint: str):
         """Make get request to specified endpoint."""
         response = await self.session.get(self.get_url(endpoint))
-        return await response.json()
+        return await response.json(content_type=None)
 
 
 class SolplanetApi:
