@@ -14,7 +14,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class SolplanetInverterDataUpdateCoordinator(DataUpdateCoordinator):
-    """Solplanet coordinator."""
+    """Solplanet inverter coordinator."""
 
     def __init__(
         self, hass: HomeAssistant, api: SolplanetApi, update_interval: int
@@ -22,7 +22,7 @@ class SolplanetInverterDataUpdateCoordinator(DataUpdateCoordinator):
         """Create instance of solplanet coordinator."""
         self.__api = api
 
-        _LOGGER.debug("Creating coordinator")
+        _LOGGER.debug("Creating inverter coordinator")
 
         super().__init__(
             hass,
@@ -34,14 +34,47 @@ class SolplanetInverterDataUpdateCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self):
         """Fetch data from REST API."""
         try:
-            _LOGGER.debug("Updating data")
+            _LOGGER.debug("Updating inverters data")
             inverters = await self.__api.get_inverter_info()
             isns = [x.isn for x in inverters.inv]
             inverters_data = await asyncio.gather(
                 *[self.__api.get_inverter_data(isn) for isn in isns]
             )
-            _LOGGER.debug("Data updated")
+            _LOGGER.debug("Inverters data updated")
             return {isns[i]: inverters_data[i] for i in range(len(isns))}
+
+        except Exception as err:
+            _LOGGER.debug(err, stack_info=True, exc_info=True)
+            raise UpdateFailed(f"Error fetching data from API: {err}") from err
+
+
+class SolplanetBatteryDataUpdateCoordinator(DataUpdateCoordinator):
+    """Solplanet battery coordinator."""
+
+    def __init__(self, hass: HomeAssistant, api: SolplanetApi) -> None:
+        """Create instance of solplanet battery coordinator."""
+        self.__api = api
+
+        _LOGGER.debug("Creating battery coordinator")
+
+        super().__init__(
+            hass,
+            _LOGGER,
+            name=DOMAIN,
+            update_interval=timedelta(seconds=60),
+        )
+
+    async def _async_update_data(self):
+        """Fetch data from REST API."""
+        try:
+            _LOGGER.debug("Updating battery data")
+            battery = await self.__api.get_battery_info()
+            isns = [battery.isn]
+            battery_data = await asyncio.gather(
+                *[self.__api.get_battery_data(isn) for isn in isns]
+            )
+            _LOGGER.debug("Battery data updated")
+            return {isns[i]: battery_data[i] for i in range(len(isns))}
 
         except Exception as err:
             _LOGGER.debug(err, stack_info=True, exc_info=True)

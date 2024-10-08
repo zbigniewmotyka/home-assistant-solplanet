@@ -12,6 +12,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.const import (
+    PERCENTAGE,
     UnitOfApparentPower,
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
@@ -25,12 +26,18 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.helpers.update_coordinator import (
+    CoordinatorEntity,
+    DataUpdateCoordinator,
+)
 
 from . import SolplanetConfigEntry
 from .client import GetInverterDataResponse
-from .const import DOMAIN
-from .coordinator import SolplanetInverterDataUpdateCoordinator
+from .const import BATTERY_IDENTIFIER, DOMAIN
+from .coordinator import (
+    SolplanetBatteryDataUpdateCoordinator,
+    SolplanetInverterDataUpdateCoordinator,
+)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -43,43 +50,33 @@ class SolplanetSensorEntityDescription(SensorEntityDescription):
     unique_id_suffix: str | None = None
 
 
-class SolplanetInverterSensor(
-    CoordinatorEntity[SolplanetInverterDataUpdateCoordinator], SensorEntity
-):
-    """Representation of a Solplanet Inverter sensor."""
+class SolplanetSensor(CoordinatorEntity, SensorEntity):
+    """Representation of a Solplanet sensor."""
 
     entity_description: SolplanetSensorEntityDescription
+    unique_id_suffix: str
+    sanitized_entity_id: str
 
     def __init__(
         self,
         description: SolplanetSensorEntityDescription,
         isn: str,
-        coordinator: SolplanetInverterDataUpdateCoordinator,
+        coordinator: DataUpdateCoordinator,
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
         self.entity_description = description
-        unique_id_suffix = (
+        self.unique_id_suffix = (
             description.unique_id_suffix
             if description.unique_id_suffix
             else "_".join(str(x) for x in description.data_field_path)
         )
-
-        sanitized_entity_id = self._sanitize_string_for_entity_id(
+        self.sanitized_entity_id = self._sanitize_string_for_entity_id(
             f"{isn}_{description.name}"
         )
-        self.entity_id = f"sensor.solplanet_{sanitized_entity_id}"
         self._isn = isn
-        self._attr_unique_id = f"solplanet_{isn}_{unique_id_suffix}"
         self._attr_native_value = self._get_value_from_coordinator()
         self._attr_entity_registry_enabled_default = self._attr_native_value is not None
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device information about this sensor."""
-        return {
-            "identifiers": {(DOMAIN, self._isn)},
-        }
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -116,6 +113,52 @@ class SolplanetInverterSensor(
         sanitized_string = re.sub(r"[^a-z0-9_]+", "_", sanitized_string)
         sanitized_string = re.sub(r"_+", "_", sanitized_string)
         return sanitized_string.strip("_")
+
+
+class SolplanetInverterSensor(SolplanetSensor):
+    """Representation of a Solplanet Inverter sensor."""
+
+    def __init__(
+        self,
+        description: SolplanetSensorEntityDescription,
+        isn: str,
+        coordinator: SolplanetInverterDataUpdateCoordinator,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(description, isn, coordinator)
+
+        self.entity_id = f"sensor.solplanet_{self.sanitized_entity_id}"
+        self._attr_unique_id = f"solplanet_{isn}_{self.unique_id_suffix}"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device information about this sensor."""
+        return {
+            "identifiers": {(DOMAIN, self._isn)},
+        }
+
+
+class SolplanetBatterySensor(SolplanetSensor):
+    """Representation of a Solplanet Battery sensor."""
+
+    def __init__(
+        self,
+        description: SolplanetSensorEntityDescription,
+        isn: str,
+        coordinator: SolplanetBatteryDataUpdateCoordinator,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(description, isn, coordinator)
+
+        self.entity_id = f"sensor.solplanet_battery_{self.sanitized_entity_id}"
+        self._attr_unique_id = f"solplanet_battery_{isn}_{self.unique_id_suffix}"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device information about this sensor."""
+        return {
+            "identifiers": {(DOMAIN, f"{BATTERY_IDENTIFIER}_{self._isn}")},
+        }
 
 
 def _create_mppt_power_mapper(index: int) -> abc.Callable:
@@ -290,22 +333,116 @@ def create_inverter_entites_description(
     return sensors
 
 
+def create_battery_entites_description(
+    coordinator: SolplanetBatteryDataUpdateCoordinator, isn: str
+) -> list[SolplanetSensorEntityDescription]:
+    """Create entities for inverter."""
+    return [
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_vb",
+            name="Voltage",
+            data_field_path=["vb"],
+            data_field_value_multiply=0.01,
+            native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+            device_class=SensorDeviceClass.VOLTAGE,
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_cb",
+            name="Current",
+            data_field_path=["cb"],
+            data_field_value_multiply=0.1,
+            native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+            device_class=SensorDeviceClass.CURRENT,
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_pb",
+            name="Power",
+            data_field_path=["pb"],
+            native_unit_of_measurement=UnitOfPower.WATT,
+            device_class=SensorDeviceClass.POWER,
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_tb",
+            name="Temperature",
+            data_field_path=["tb"],
+            data_field_value_multiply=0.1,
+            native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+            device_class=SensorDeviceClass.TEMPERATURE,
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_soc",
+            name="State of charge",
+            data_field_path=["soc"],
+            native_unit_of_measurement=PERCENTAGE,
+            device_class=SensorDeviceClass.BATTERY,
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_soh",
+            name="State of health",
+            data_field_path=["soh"],
+            native_unit_of_measurement=PERCENTAGE,
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_etdesp",
+            name="ESP Energy today",
+            data_field_path=["etdesp"],
+            data_field_value_multiply=0.1,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            device_class=SensorDeviceClass.ENERGY,
+            state_class=SensorStateClass.TOTAL_INCREASING,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_etoesp",
+            name="ESP Energy total",
+            data_field_path=["etoesp"],
+            data_field_value_multiply=0.1,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            device_class=SensorDeviceClass.ENERGY,
+            state_class=SensorStateClass.TOTAL_INCREASING,
+        ),
+    ]
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: SolplanetConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up sensors for Solplanet Inverter from a config entry."""
-    coordinator: SolplanetInverterDataUpdateCoordinator = hass.data[DOMAIN][
+    inverters_coordinator: SolplanetInverterDataUpdateCoordinator = hass.data[DOMAIN][
         entry.entry_id
-    ]
+    ]["inverters_coordinator"]
 
-    for isn in coordinator.data:
+    for isn in inverters_coordinator.data:
         async_add_entities(
             SolplanetInverterSensor(
-                description=entity_description, isn=isn, coordinator=coordinator
+                description=entity_description,
+                isn=isn,
+                coordinator=inverters_coordinator,
             )
             for entity_description in create_inverter_entites_description(
-                coordinator, isn
+                inverters_coordinator, isn
+            )
+        )
+
+    battery_coordinator: SolplanetBatteryDataUpdateCoordinator = hass.data[DOMAIN][
+        entry.entry_id
+    ]["battery_coordinator"]
+
+    for isn in battery_coordinator.data:
+        async_add_entities(
+            SolplanetBatterySensor(
+                description=entity_description,
+                isn=isn,
+                coordinator=battery_coordinator,
+            )
+            for entity_description in create_battery_entites_description(
+                battery_coordinator, isn
             )
         )
