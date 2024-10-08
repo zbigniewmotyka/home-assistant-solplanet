@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant
@@ -9,13 +11,18 @@ import homeassistant.helpers.config_validation as cv
 import homeassistant.helpers.device_registry as dr
 
 from .client import SolplanetApi, SolplanetClient
-from .const import DOMAIN, MANUFACTURER
-from .coordinator import SolplanetInverterDataUpdateCoordinator
+from .const import BATTERY_IDENTIFIER, DOMAIN, MANUFACTURER
+from .coordinator import (
+    SolplanetBatteryDataUpdateCoordinator,
+    SolplanetInverterDataUpdateCoordinator,
+)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
 
 type SolplanetConfigEntry = ConfigEntry[SolplanetApi]  # noqa: F821
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup(hass: HomeAssistant, entry: SolplanetConfigEntry) -> bool:
@@ -31,9 +38,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
     client = SolplanetClient(entry.data[CONF_HOST], hass)
     api = SolplanetApi(client)
 
-    coordinator = SolplanetInverterDataUpdateCoordinator(hass, api)
-    await coordinator.async_config_entry_first_refresh()
-    hass.data[DOMAIN][entry.entry_id] = coordinator
+    inverters_coordinator = SolplanetInverterDataUpdateCoordinator(hass, api)
+    await inverters_coordinator.async_config_entry_first_refresh()
+
+    battery_coordinator = SolplanetBatteryDataUpdateCoordinator(hass, api)
+    await battery_coordinator.async_config_entry_first_refresh()
+
+    hass.data[DOMAIN][entry.entry_id] = {
+        "inverters_coordinator": inverters_coordinator,
+        "battery_coordinator": battery_coordinator,
+    }
 
     entry.runtime_data = api
 
@@ -51,6 +65,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
             serial_number=inverter_info.isn,
             sw_version=f"Master: {inverter_info.msw}, Slave: {inverter_info.ssw}, Security: {inverter_info.tsw}",
         )
+
+    try:
+        battery = await api.get_battery_info()
+
+        device_registry.async_get_or_create(
+            config_entry_id=entry.entry_id,
+            identifiers={(DOMAIN, f"{BATTERY_IDENTIFIER}_{battery.isn or ""}")},
+            name=f"Battery ({battery.isn})",
+            serial_number=battery.isn,
+            sw_version=battery.battery.softwarever,
+            hw_version=battery.battery.hardwarever,
+        )
+    except Exception:
+        _LOGGER.exception("Exception during getting battery data")
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

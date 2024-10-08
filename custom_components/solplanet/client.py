@@ -107,6 +107,115 @@ class GetInverterInfoResponse:
     num: int | None = None
 
 
+@dataclass
+class GetBatteryDataResponse:
+    """Get battery data response model.
+
+    Attributes
+    ----------
+    flg : int
+        TBD ??
+    tim : str
+        Datetime in format YYYYMMDDHHMMSS
+    vb : int
+        Battery voltage [V] (/100)
+    cb : int
+        Battery current [A] (/10)
+    pb : int
+        Power pattery [W]
+    tb : int
+        Temperature [dC]
+    soc : int
+        State of charge [%]
+    soh : int
+        State of health [%]
+
+    """
+
+    flg: int | None = None
+    tim: str | None = None
+    ppv: int | None = None
+    etdpv: int | None = None
+    etopv: int | None = None
+    cst: int | None = None
+    bst: int | None = None
+    eb1: int | None = None
+    wb1: int | None = None
+    vb: int | None = None
+    cb: int | None = None
+    pb: int | None = None
+    tb: int | None = None
+    soc: int | None = None
+    soh: int | None = None
+    cli: int | None = None
+    clo: int | None = None
+    ebi: int | None = None
+    ebo: int | None = None
+    eaci: int | None = None
+    eaco: int | None = None
+    vesp: int | None = None
+    cesp: int | None = None
+    fesp: int | None = None
+    pesp: int | None = None
+    rpesp: int | None = None
+    etdesp: int | None = None
+    etoesp: int | None = None
+    charge_ac_td: int | None = None
+    charge_ac_to: int | None = None
+
+
+@dataclass
+class GetBatteryInfoItemResponse:
+    """Get battery info item response."""
+
+    bid: int | None = None
+    devtype: str | None = None
+    manufactoty: str | None = None
+    partno: str | None = None
+    model1sn: str | None = None
+    model2sn: str | None = None
+    model3sn: str | None = None
+    model4sn: str | None = None
+    model5sn: str | None = None
+    model6sn: str | None = None
+    model7sn: str | None = None
+    model8sn: str | None = None
+    modeltotal: int | None = None
+    monomertotoal: int | None = None
+    monomerinmodel: int | None = None
+    ratedvoltage: int | None = None
+    capacity: int | None = None
+    hardwarever: str | None = None
+    softwarever: str | None = None
+
+
+@dataclass
+class GetBatteryInfoResponse:
+    """Get battery data response model.
+
+    Attributes
+    ----------
+    charge_max : int
+        Max charge battery level [%]
+    discharge_max : int
+        Max discharge battery level [%]
+
+    """
+
+    battery: GetBatteryInfoItemResponse
+    isn: str | None = None
+    stu_r: int | None = None
+    type: int | None = None
+    mod_r: int | None = None
+    muf: int | None = None
+    mod: int | None = None
+    num: int | None = None
+    fir_r: int | None = None
+    charging: int | None = None
+    charge_max: int | None = None
+    discharge_max: int | None = None
+
+
 class SolplanetClient:
     """Solplanet http client."""
 
@@ -149,6 +258,21 @@ class SolplanetApi:
             for item in response["inv"]
         ]
         return self._create_class_from_dict(GetInverterInfoResponse, response)
+
+    async def get_battery_data(self, sn: str) -> GetBatteryDataResponse:
+        """Get battery data."""
+        _LOGGER.debug("Getting battery data")
+        response = await self.client.get("getdevdata.cgi?device=4&sn=" + sn)
+        return self._create_class_from_dict(GetBatteryDataResponse, response)
+
+    async def get_battery_info(self) -> GetBatteryInfoResponse:
+        """Get battery info."""
+        _LOGGER.debug("Getting battery info")
+        response = await self.client.get("getdev.cgi?device=4")
+        response["battery"] = self._create_class_from_dict(
+            GetBatteryInfoItemResponse, response["battery"]
+        )
+        return self._create_class_from_dict(GetBatteryInfoResponse, response)
 
     def _create_class_from_dict(self, cls, dict):
         return cls(**{k: v for k, v in dict.items() if k in signature(cls).parameters})
