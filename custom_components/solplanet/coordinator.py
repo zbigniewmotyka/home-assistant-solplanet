@@ -16,7 +16,9 @@ _LOGGER = logging.getLogger(__name__)
 class SolplanetInverterDataUpdateCoordinator(DataUpdateCoordinator):
     """Solplanet coordinator."""
 
-    def __init__(self, hass: HomeAssistant, api: SolplanetApi) -> None:
+    def __init__(
+        self, hass: HomeAssistant, api: SolplanetApi, update_interval: int
+    ) -> None:
         """Create instance of solplanet coordinator."""
         self.__api = api
 
@@ -26,7 +28,7 @@ class SolplanetInverterDataUpdateCoordinator(DataUpdateCoordinator):
             hass,
             _LOGGER,
             name=DOMAIN,
-            update_interval=timedelta(seconds=60),
+            update_interval=timedelta(seconds=update_interval),
         )
 
     async def _async_update_data(self):
@@ -42,5 +44,5 @@ class SolplanetInverterDataUpdateCoordinator(DataUpdateCoordinator):
             return {isns[i]: inverters_data[i] for i in range(len(isns))}
 
         except Exception as err:
-            _LOGGER.exception("Exception occurred during data update")
+            _LOGGER.debug(err, stack_info=True, exc_info=True)
             raise UpdateFailed(f"Error fetching data from API: {err}") from err

@@ -3,7 +3,8 @@
     "step": {
       "user": {
         "data": {
-          "host": "[%key:common::config_flow::data::host%]"
+          "host": "Solplanet inverter ip address / host",
+          "interval": "Update interval"
         }
       }
     },
