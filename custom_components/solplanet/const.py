@@ -2,3 +2,5 @@
 
 DOMAIN = "solplanet"
 MANUFACTURER = "Solplanet"
+
+BATTERY_IDENTIFIER = "battery"
