@@ -42,5 +42,5 @@ class SolplanetInverterDataUpdateCoordinator(DataUpdateCoordinator):
             return {isns[i]: inverters_data[i] for i in range(len(isns))}
 
         except Exception as err:
-            _LOGGER.exception("Exception occurred during data update")
+            _LOGGER.debug(err, stack_info=True, exc_info=True)
             raise UpdateFailed(f"Error fetching data from API: {err}") from err
