@@ -13,13 +13,14 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 
 from .client import SolplanetApi, SolplanetClient
-from .const import DOMAIN
+from .const import CONF_INTERVAL, DEFAULT_INTERVAL, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_HOST): str,
+        vol.Required(CONF_INTERVAL, default=DEFAULT_INTERVAL): int,
     }
 )
 
@@ -48,6 +49,7 @@ class SolplanetConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Solplanet."""
 
     VERSION = 1
+    MINOR_VERSION = 2
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None

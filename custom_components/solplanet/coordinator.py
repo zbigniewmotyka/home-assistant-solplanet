@@ -16,7 +16,9 @@ _LOGGER = logging.getLogger(__name__)
 class SolplanetInverterDataUpdateCoordinator(DataUpdateCoordinator):
     """Solplanet coordinator."""
 
-    def __init__(self, hass: HomeAssistant, api: SolplanetApi) -> None:
+    def __init__(
+        self, hass: HomeAssistant, api: SolplanetApi, update_interval: int
+    ) -> None:
         """Create instance of solplanet coordinator."""
         self.__api = api
 
@@ -26,7 +28,7 @@ class SolplanetInverterDataUpdateCoordinator(DataUpdateCoordinator):
             hass,
             _LOGGER,
             name=DOMAIN,
-            update_interval=timedelta(seconds=60),
+            update_interval=timedelta(seconds=update_interval),
         )
 
     async def _async_update_data(self):
