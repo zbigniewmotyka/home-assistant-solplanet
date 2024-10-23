@@ -12,6 +12,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.const import (
+    PERCENTAGE,
     UnitOfApparentPower,
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
@@ -25,12 +26,18 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.helpers.update_coordinator import (
+    CoordinatorEntity,
+    DataUpdateCoordinator,
+)
 
 from . import SolplanetConfigEntry
 from .client import GetInverterDataResponse
-from .const import DOMAIN
-from .coordinator import SolplanetInverterDataUpdateCoordinator
+from .const import BATTERY_IDENTIFIER, DOMAIN
+from .coordinator import (
+    SolplanetBatteryDataUpdateCoordinator,
+    SolplanetInverterDataUpdateCoordinator,
+)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -43,43 +50,33 @@ class SolplanetSensorEntityDescription(SensorEntityDescription):
     unique_id_suffix: str | None = None
 
 
-class SolplanetInverterSensor(
-    CoordinatorEntity[SolplanetInverterDataUpdateCoordinator], SensorEntity
-):
-    """Representation of a Solplanet Inverter sensor."""
+class SolplanetSensor(CoordinatorEntity, SensorEntity):
+    """Representation of a Solplanet sensor."""
 
     entity_description: SolplanetSensorEntityDescription
+    unique_id_suffix: str
+    sanitized_entity_id: str
 
     def __init__(
         self,
         description: SolplanetSensorEntityDescription,
         isn: str,
-        coordinator: SolplanetInverterDataUpdateCoordinator,
+        coordinator: DataUpdateCoordinator,
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
         self.entity_description = description
-        unique_id_suffix = (
+        self.unique_id_suffix = (
             description.unique_id_suffix
             if description.unique_id_suffix
             else "_".join(str(x) for x in description.data_field_path)
         )
-
-        sanitized_entity_id = self._sanitize_string_for_entity_id(
+        self.sanitized_entity_id = self._sanitize_string_for_entity_id(
             f"{isn}_{description.name}"
         )
-        self.entity_id = f"sensor.solplanet_{sanitized_entity_id}"
         self._isn = isn
-        self._attr_unique_id = f"solplanet_{isn}_{unique_id_suffix}"
         self._attr_native_value = self._get_value_from_coordinator()
         self._attr_entity_registry_enabled_default = self._attr_native_value is not None
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device information about this sensor."""
-        return {
-            "identifiers": {(DOMAIN, self._isn)},
-        }
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -106,7 +103,10 @@ class SolplanetInverterSensor(
         if self.entity_description.data_field_value_mapper is not None:
             data = self.entity_description.data_field_value_mapper(data)
 
-        if self.entity_description.data_field_value_multiply is not None:
+        if (
+            data is not None
+            and self.entity_description.data_field_value_multiply is not None
+        ):
             data = data * self.entity_description.data_field_value_multiply
 
         return data
@@ -116,6 +116,52 @@ class SolplanetInverterSensor(
         sanitized_string = re.sub(r"[^a-z0-9_]+", "_", sanitized_string)
         sanitized_string = re.sub(r"_+", "_", sanitized_string)
         return sanitized_string.strip("_")
+
+
+class SolplanetInverterSensor(SolplanetSensor):
+    """Representation of a Solplanet Inverter sensor."""
+
+    def __init__(
+        self,
+        description: SolplanetSensorEntityDescription,
+        isn: str,
+        coordinator: SolplanetInverterDataUpdateCoordinator,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(description, isn, coordinator)
+
+        self.entity_id = f"sensor.solplanet_{self.sanitized_entity_id}"
+        self._attr_unique_id = f"solplanet_{isn}_{self.unique_id_suffix}"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device information about this sensor."""
+        return {
+            "identifiers": {(DOMAIN, self._isn)},
+        }
+
+
+class SolplanetBatterySensor(SolplanetSensor):
+    """Representation of a Solplanet Battery sensor."""
+
+    def __init__(
+        self,
+        description: SolplanetSensorEntityDescription,
+        isn: str,
+        coordinator: SolplanetBatteryDataUpdateCoordinator,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(description, isn, coordinator)
+
+        self.entity_id = f"sensor.solplanet_battery_{self.sanitized_entity_id}"
+        self._attr_unique_id = f"solplanet_battery_{isn}_{self.unique_id_suffix}"
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device information about this sensor."""
+        return {
+            "identifiers": {(DOMAIN, f"{BATTERY_IDENTIFIER}_{self._isn}")},
+        }
 
 
 def _create_mppt_power_mapper(index: int) -> abc.Callable:
@@ -290,22 +336,251 @@ def create_inverter_entites_description(
     return sensors
 
 
+def create_battery_entites_description(
+    coordinator: SolplanetBatteryDataUpdateCoordinator, isn: str
+) -> list[SolplanetSensorEntityDescription]:
+    """Create entities for inverter."""
+    return [
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_cst",
+            name="Communication status",
+            data_field_path=["cst"],
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_bst",
+            name="Battery status",
+            data_field_path=["bst"],
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_eb1",
+            name="Battery error code",
+            data_field_path=["eb1"],
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_wb1",
+            name="Battery warning code",
+            data_field_path=["wb1"],
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_vb",
+            name="Battery voltage",
+            data_field_path=["vb"],
+            data_field_value_multiply=0.01,
+            native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+            device_class=SensorDeviceClass.VOLTAGE,
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_cb",
+            name="Battery current",
+            data_field_path=["cb"],
+            data_field_value_multiply=0.1,
+            native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+            device_class=SensorDeviceClass.CURRENT,
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_pb",
+            name="Battery power",
+            data_field_path=["pb"],
+            native_unit_of_measurement=UnitOfPower.WATT,
+            device_class=SensorDeviceClass.POWER,
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_tb",
+            name="Battery temperature",
+            data_field_path=["tb"],
+            data_field_value_multiply=0.1,
+            native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+            device_class=SensorDeviceClass.TEMPERATURE,
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_soc",
+            name="Battery state of charge",
+            data_field_path=["soc"],
+            native_unit_of_measurement=PERCENTAGE,
+            device_class=SensorDeviceClass.BATTERY,
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_soh",
+            name="Battery state of health",
+            data_field_path=["soh"],
+            native_unit_of_measurement=PERCENTAGE,
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_cli",
+            name="Current limit for charging",
+            data_field_path=["cli"],
+            data_field_value_multiply=0.1,
+            native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+            device_class=SensorDeviceClass.CURRENT,
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_clo",
+            name="Current limit for discharging",
+            data_field_path=["clo"],
+            data_field_value_multiply=0.1,
+            native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+            device_class=SensorDeviceClass.CURRENT,
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_ebi",
+            name="Battery energy for charging",
+            data_field_path=["ebi"],
+            data_field_value_multiply=0.1,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            device_class=SensorDeviceClass.ENERGY,
+            state_class=SensorStateClass.TOTAL_INCREASING,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_ebo",
+            name="Battery energy for discharging",
+            data_field_path=["ebo"],
+            data_field_value_multiply=0.1,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            device_class=SensorDeviceClass.ENERGY,
+            state_class=SensorStateClass.TOTAL_INCREASING,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_eaci",
+            name="AC energy for charging",
+            data_field_path=["eaci"],
+            data_field_value_multiply=0.1,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            device_class=SensorDeviceClass.ENERGY,
+            state_class=SensorStateClass.TOTAL_INCREASING,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_eaco",
+            name="AC energy for discharging",
+            data_field_path=["eaco"],
+            data_field_value_multiply=0.1,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            device_class=SensorDeviceClass.ENERGY,
+            state_class=SensorStateClass.TOTAL_INCREASING,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_vesp",
+            name="EPS voltage",
+            data_field_path=["vesp"],
+            data_field_value_multiply=0.1,
+            native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+            device_class=SensorDeviceClass.VOLTAGE,
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_cesp",
+            name="EPS current",
+            data_field_path=["cesp"],
+            data_field_value_multiply=0.1,
+            native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+            device_class=SensorDeviceClass.CURRENT,
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_fesp",
+            name="EPS frequency",
+            data_field_path=["fesp"],
+            data_field_value_multiply=0.01,
+            native_unit_of_measurement=UnitOfFrequency.HERTZ,
+            device_class=SensorDeviceClass.FREQUENCY,
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_pesp",
+            name="EPS power",
+            data_field_path=["pesp"],
+            native_unit_of_measurement=UnitOfPower.WATT,
+            device_class=SensorDeviceClass.POWER,
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_rpesp",
+            name="EPS reactive power",
+            data_field_path=["rpesp"],
+            native_unit_of_measurement=UnitOfReactivePower.VOLT_AMPERE_REACTIVE,
+            device_class=SensorDeviceClass.REACTIVE_POWER,
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_etdesp",
+            name="EPS energy today",
+            data_field_path=["etdesp"],
+            data_field_value_multiply=0.1,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            device_class=SensorDeviceClass.ENERGY,
+            state_class=SensorStateClass.TOTAL_INCREASING,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_etoesp",
+            name="EPS energy total",
+            data_field_path=["etoesp"],
+            data_field_value_multiply=0.1,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            device_class=SensorDeviceClass.ENERGY,
+            state_class=SensorStateClass.TOTAL_INCREASING,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_charge_ac_td",
+            name="AC charge today",
+            data_field_path=["charge_ac_td"],
+            data_field_value_multiply=0.1,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            device_class=SensorDeviceClass.ENERGY,
+            state_class=SensorStateClass.TOTAL_INCREASING,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_charge_ac_to",
+            name="AC charge total",
+            data_field_path=["charge_ac_to"],
+            data_field_value_multiply=0.1,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            device_class=SensorDeviceClass.ENERGY,
+            state_class=SensorStateClass.TOTAL_INCREASING,
+        ),
+    ]
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: SolplanetConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up sensors for Solplanet Inverter from a config entry."""
-    coordinator: SolplanetInverterDataUpdateCoordinator = hass.data[DOMAIN][
+    inverters_coordinator: SolplanetInverterDataUpdateCoordinator = hass.data[DOMAIN][
         entry.entry_id
-    ]
+    ]["inverters_coordinator"]
 
-    for isn in coordinator.data:
+    for isn in inverters_coordinator.data:
         async_add_entities(
             SolplanetInverterSensor(
-                description=entity_description, isn=isn, coordinator=coordinator
+                description=entity_description,
+                isn=isn,
+                coordinator=inverters_coordinator,
             )
             for entity_description in create_inverter_entites_description(
-                coordinator, isn
+                inverters_coordinator, isn
+            )
+        )
+
+    battery_coordinator: SolplanetBatteryDataUpdateCoordinator = hass.data[DOMAIN][
+        entry.entry_id
+    ]["battery_coordinator"]
+
+    for isn in battery_coordinator.data:
+        async_add_entities(
+            SolplanetBatterySensor(
+                description=entity_description,
+                isn=isn,
+                coordinator=battery_coordinator,
+            )
+            for entity_description in create_battery_entites_description(
+                battery_coordinator, isn
             )
         )
