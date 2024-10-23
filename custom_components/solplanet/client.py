@@ -202,7 +202,7 @@ class GetBatteryInfoResponse:
 
     """
 
-    battery: GetBatteryInfoItemResponse
+    battery: GetBatteryInfoItemResponse | None = None
     isn: str | None = None
     stu_r: int | None = None
     type: int | None = None
@@ -269,9 +269,10 @@ class SolplanetApi:
         """Get battery info."""
         _LOGGER.debug("Getting battery info")
         response = await self.client.get("getdev.cgi?device=4")
-        response["battery"] = self._create_class_from_dict(
-            GetBatteryInfoItemResponse, response["battery"]
-        )
+        if "battery" in response:
+            response["battery"] = self._create_class_from_dict(
+                GetBatteryInfoItemResponse, response["battery"]
+            )
         return self._create_class_from_dict(GetBatteryInfoResponse, response)
 
     def _create_class_from_dict(self, cls, dict):

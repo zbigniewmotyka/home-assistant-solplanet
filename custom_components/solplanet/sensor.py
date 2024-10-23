@@ -103,7 +103,10 @@ class SolplanetSensor(CoordinatorEntity, SensorEntity):
         if self.entity_description.data_field_value_mapper is not None:
             data = self.entity_description.data_field_value_mapper(data)
 
-        if self.entity_description.data_field_value_multiply is not None:
+        if (
+            data is not None
+            and self.entity_description.data_field_value_multiply is not None
+        ):
             data = data * self.entity_description.data_field_value_multiply
 
         return data

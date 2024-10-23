@@ -77,8 +77,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
             identifiers={(DOMAIN, f"{BATTERY_IDENTIFIER}_{battery.isn or ""}")},
             name=f"Battery ({battery.isn})",
             serial_number=battery.isn,
-            sw_version=battery.battery.softwarever,
-            hw_version=battery.battery.hardwarever,
+            sw_version=battery.battery.softwarever if battery.battery else "",
+            hw_version=battery.battery.hardwarever if battery.battery else "",
         )
     except Exception:
         _LOGGER.exception("Exception during getting battery data")
