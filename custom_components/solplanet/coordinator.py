@@ -51,7 +51,9 @@ class SolplanetInverterDataUpdateCoordinator(DataUpdateCoordinator):
 class SolplanetBatteryDataUpdateCoordinator(DataUpdateCoordinator):
     """Solplanet battery coordinator."""
 
-    def __init__(self, hass: HomeAssistant, api: SolplanetApi) -> None:
+    def __init__(
+        self, hass: HomeAssistant, api: SolplanetApi, update_interval: int
+    ) -> None:
         """Create instance of solplanet battery coordinator."""
         self.__api = api
 
@@ -61,7 +63,7 @@ class SolplanetBatteryDataUpdateCoordinator(DataUpdateCoordinator):
             hass,
             _LOGGER,
             name=DOMAIN,
-            update_interval=timedelta(seconds=60),
+            update_interval=timedelta(seconds=update_interval),
         )
 
     async def _async_update_data(self):

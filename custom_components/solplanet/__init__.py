@@ -11,7 +11,13 @@ import homeassistant.helpers.config_validation as cv
 import homeassistant.helpers.device_registry as dr
 
 from .client import SolplanetApi, SolplanetClient
-from .const import BATTERY_IDENTIFIER, CONF_INTERVAL, DEFAULT_INTERVAL, DOMAIN, MANUFACTURER
+from .const import (
+    BATTERY_IDENTIFIER,
+    CONF_INTERVAL,
+    DEFAULT_INTERVAL,
+    DOMAIN,
+    MANUFACTURER,
+)
 from .coordinator import (
     SolplanetBatteryDataUpdateCoordinator,
     SolplanetInverterDataUpdateCoordinator,
@@ -44,7 +50,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
     )
     await inverters_coordinator.async_config_entry_first_refresh()
 
-    battery_coordinator = SolplanetBatteryDataUpdateCoordinator(hass, api)
+    battery_coordinator = SolplanetBatteryDataUpdateCoordinator(
+        hass, api, entry.data[CONF_INTERVAL]
+    )
     await battery_coordinator.async_config_entry_first_refresh()
 
     hass.data[DOMAIN][entry.entry_id] = {
