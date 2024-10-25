@@ -215,7 +215,7 @@ def create_inverter_entites_description(
         ),
         SolplanetSensorEntityDescription(
             key=f"{isn}_qac",
-            name="Reactive / complex power",
+            name="Reactive power",
             data_field_path=["qac"],
             native_unit_of_measurement=UnitOfReactivePower.VOLT_AMPERE_REACTIVE,
             device_class=SensorDeviceClass.REACTIVE_POWER,
@@ -265,6 +265,28 @@ def create_inverter_entites_description(
             state_class=SensorStateClass.TOTAL_INCREASING,
         ),
     ]
+
+    for i in range(3):
+        sensors.append(  # noqa: PERF401
+            SolplanetSensorEntityDescription(
+                key=f"{isn}_pac{i+1}",
+                name=f"AC phase {i+1} power",
+                data_field_path=[f"pac{i+1}"],
+                native_unit_of_measurement=UnitOfPower.WATT,
+                device_class=SensorDeviceClass.POWER,
+                state_class=SensorStateClass.MEASUREMENT,
+            ),
+        )
+        sensors.append(  # noqa: PERF401
+            SolplanetSensorEntityDescription(
+                key=f"{isn}_qac{i+1}",
+                name=f"AC phase {i+1} reactive power",
+                data_field_path=[f"qac{i+1}"],
+                native_unit_of_measurement=UnitOfReactivePower.VOLT_AMPERE_REACTIVE,
+                device_class=SensorDeviceClass.REACTIVE_POWER,
+                state_class=SensorStateClass.MEASUREMENT,
+            ),
+        )
 
     for i in range(len(data.vac or [])):
         sensors.append(  # noqa: PERF401
@@ -340,7 +362,7 @@ def create_battery_entites_description(
     coordinator: SolplanetBatteryDataUpdateCoordinator, isn: str
 ) -> list[SolplanetSensorEntityDescription]:
     """Create entities for inverter."""
-    return [
+    sensors = [
         SolplanetSensorEntityDescription(
             key=f"{isn}_cst",
             name="Communication status",
@@ -360,6 +382,32 @@ def create_battery_entites_description(
             key=f"{isn}_wb1",
             name="Battery warning code",
             data_field_path=["wb1"],
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_ppv",
+            name="PV power",
+            data_field_path=["ppv"],
+            native_unit_of_measurement=UnitOfPower.WATT,
+            device_class=SensorDeviceClass.POWER,
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_etdpv",
+            name="PV energy today",
+            data_field_path=["etdpv"],
+            data_field_value_multiply=0.1,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            device_class=SensorDeviceClass.ENERGY,
+            state_class=SensorStateClass.TOTAL_INCREASING,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_etopv",
+            name="PV energy total",
+            data_field_path=["etopv"],
+            data_field_value_multiply=0.1,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            device_class=SensorDeviceClass.ENERGY,
+            state_class=SensorStateClass.TOTAL_INCREASING,
         ),
         SolplanetSensorEntityDescription(
             key=f"{isn}_vb",
@@ -545,6 +593,52 @@ def create_battery_entites_description(
             state_class=SensorStateClass.TOTAL_INCREASING,
         ),
     ]
+
+    for i in range(3):
+        sensors.append(  # noqa: PERF401
+            SolplanetSensorEntityDescription(
+                key=f"{isn}_vl{i+1}esp",
+                name=f"EPS phase {i+1} current",
+                data_field_path=[f"vl{i+1}esp"],
+                data_field_value_multiply=0.1,
+                native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+                device_class=SensorDeviceClass.VOLTAGE,
+                state_class=SensorStateClass.MEASUREMENT,
+            ),
+        )
+        sensors.append(  # noqa: PERF401
+            SolplanetSensorEntityDescription(
+                key=f"{isn}_il{i+1}esp",
+                name=f"EPS phase {i+1} voltage",
+                data_field_path=[f"il{i+1}esp"],
+                data_field_value_multiply=0.1,
+                native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+                device_class=SensorDeviceClass.CURRENT,
+                state_class=SensorStateClass.MEASUREMENT,
+            ),
+        )
+        sensors.append(  # noqa: PERF401
+            SolplanetSensorEntityDescription(
+                key=f"{isn}_pac{i+1}esp",
+                name=f"EPS phase {i+1} power",
+                data_field_path=[f"pac{i+1}esp"],
+                native_unit_of_measurement=UnitOfPower.WATT,
+                device_class=SensorDeviceClass.POWER,
+                state_class=SensorStateClass.MEASUREMENT,
+            ),
+        )
+        sensors.append(  # noqa: PERF401
+            SolplanetSensorEntityDescription(
+                key=f"{isn}_qac{i+1}esp",
+                name=f"EPS phase {i+1} reactive power",
+                data_field_path=[f"qac{i+1}esp"],
+                native_unit_of_measurement=UnitOfReactivePower.VOLT_AMPERE_REACTIVE,
+                device_class=SensorDeviceClass.REACTIVE_POWER,
+                state_class=SensorStateClass.MEASUREMENT,
+            ),
+        )
+
+    return sensors
 
 
 async def async_setup_entry(

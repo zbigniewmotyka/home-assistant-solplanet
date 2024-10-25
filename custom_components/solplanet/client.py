@@ -77,6 +77,13 @@ class GetInverterDataResponse:
     vpv: list[int] | None = None
     ipv: list[int] | None = None
     str: list[int] | None = None
+    stu: int | None = None
+    pac1: int | None = None
+    qac1: int | None = None
+    pac2: int | None = None
+    qac2: int | None = None
+    pac3: int | None = None
+    qac3: int | None = None
 
 
 @dataclass
@@ -162,6 +169,18 @@ class GetBatteryDataResponse:
     etoesp: int | None = None
     charge_ac_td: int | None = None
     charge_ac_to: int | None = None
+    vl1esp: int | None = None
+    il1esp: int | None = None
+    pac1esp: int | None = None
+    qac1esp: int | None = None
+    vl2esp: int | None = None
+    il2esp: int | None = None
+    pac2esp: int | None = None
+    qac2esp: int | None = None
+    vl3esp: int | None = None
+    il3esp: int | None = None
+    pac3esp: int | None = None
+    qac3esp: int | None = None
 
 
 @dataclass
