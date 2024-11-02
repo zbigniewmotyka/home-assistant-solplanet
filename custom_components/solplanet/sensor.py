@@ -647,34 +647,38 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up sensors for Solplanet Inverter from a config entry."""
-    inverters_coordinator: SolplanetInverterDataUpdateCoordinator = hass.data[DOMAIN][
-        entry.entry_id
-    ]["inverters_coordinator"]
+    data = hass.data[DOMAIN][entry.entry_id]
 
-    for isn in inverters_coordinator.data:
-        async_add_entities(
-            SolplanetInverterSensor(
-                description=entity_description,
-                isn=isn,
-                coordinator=inverters_coordinator,
-            )
-            for entity_description in create_inverter_entites_description(
-                inverters_coordinator, isn
-            )
-        )
+    if "inverters_coordinator" in data:
+        inverters_coordinator: SolplanetInverterDataUpdateCoordinator = data[
+            "inverters_coordinator"
+        ]
 
-    battery_coordinator: SolplanetBatteryDataUpdateCoordinator = hass.data[DOMAIN][
-        entry.entry_id
-    ]["battery_coordinator"]
+        for isn in inverters_coordinator.data:
+            async_add_entities(
+                SolplanetInverterSensor(
+                    description=entity_description,
+                    isn=isn,
+                    coordinator=inverters_coordinator,
+                )
+                for entity_description in create_inverter_entites_description(
+                    inverters_coordinator, isn
+                )
+            )
 
-    for isn in battery_coordinator.data:
-        async_add_entities(
-            SolplanetBatterySensor(
-                description=entity_description,
-                isn=isn,
-                coordinator=battery_coordinator,
+    if "battery_coordinator" in data:
+        battery_coordinator: SolplanetBatteryDataUpdateCoordinator = data[
+            "battery_coordinator"
+        ]
+
+        for isn in battery_coordinator.data:
+            async_add_entities(
+                SolplanetBatterySensor(
+                    description=entity_description,
+                    isn=isn,
+                    coordinator=battery_coordinator,
+                )
+                for entity_description in create_battery_entites_description(
+                    battery_coordinator, isn
+                )
             )
-            for entity_description in create_battery_entites_description(
-                battery_coordinator, isn
-            )
-        )

@@ -15,6 +15,39 @@ _LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
+class GetMonitorInfoResponse:
+    """Get monitor info response."""
+
+    psn: str | None = None
+    key: str | None = None
+    typ: int | str | None = None
+    nam: str | None = None
+    mod: str | None = None
+    muf: str | None = None
+    brd: str | None = None
+    hw: str | None = None
+    sw: str | None = None
+    wsw: str | None = None
+    protocol: str | None = None
+    tim: str | None = None
+    drm: int | None = None
+    drm_q: int | None = None
+    ali_ip: str | None = None
+    ali_port: int | None = None
+    pdk: str | None = None
+    ser: str | None = None  # codespell:ignore ser
+    status: int | None = None
+
+    def isNewVersion(self) -> bool:
+        """Check if device has new api version."""
+        return self.protocol is not None and self.protocol != ""
+
+    def isStorage(self) -> bool:
+        """Check if device supports battery."""
+        return self.isNewVersion() and self.psn is not None and self.typ in (7, "7")
+
+
+@dataclass
 class GetInverterDataResponse:
     """Get inverter data response model.
 
@@ -261,6 +294,12 @@ class SolplanetApi:
         """Create instance of solplanet api."""
         _LOGGER.debug("Creating api instance")
         self.client = client
+
+    async def get_monitor_info(self) -> GetMonitorInfoResponse:
+        """Get monitor info."""
+        _LOGGER.debug("Getting monitor info")
+        response = await self.client.get("getdev.cgi")
+        return self._create_class_from_dict(GetMonitorInfoResponse, response)
 
     async def get_inverter_data(self, sn: str) -> GetInverterDataResponse:
         """Get inverter data."""

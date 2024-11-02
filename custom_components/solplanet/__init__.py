@@ -44,27 +44,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
 
     client = SolplanetClient(entry.data[CONF_HOST], hass)
     api = SolplanetApi(client)
+    entry.runtime_data = api
+
+    hass.data[DOMAIN][entry.entry_id] = {}
+
+    device_registry = dr.async_get(hass)
+
+    monitor = await api.get_monitor_info()
 
     inverters_coordinator = SolplanetInverterDataUpdateCoordinator(
         hass, api, entry.data[CONF_INTERVAL]
     )
     await inverters_coordinator.async_config_entry_first_refresh()
 
-    battery_coordinator = SolplanetBatteryDataUpdateCoordinator(
-        hass, api, entry.data[CONF_INTERVAL]
-    )
-    await battery_coordinator.async_config_entry_first_refresh()
-
-    hass.data[DOMAIN][entry.entry_id] = {
-        "inverters_coordinator": inverters_coordinator,
-        "battery_coordinator": battery_coordinator,
-    }
-
-    entry.runtime_data = api
-
     inverters_info = await api.get_inverter_info()
-
-    device_registry = dr.async_get(hass)
 
     for inverter_info in inverters_info.inv:
         device_registry.async_get_or_create(
@@ -77,7 +70,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
             sw_version=f"Master: {inverter_info.msw}, Slave: {inverter_info.ssw}, Security: {inverter_info.tsw}",
         )
 
-    try:
+    hass.data[DOMAIN][entry.entry_id]["inverters_coordinator"] = inverters_coordinator
+
+    if monitor.isStorage():
+        battery_coordinator = SolplanetBatteryDataUpdateCoordinator(
+            hass, api, entry.data[CONF_INTERVAL]
+        )
+        await battery_coordinator.async_config_entry_first_refresh()
+
         battery = await api.get_battery_info()
 
         device_registry.async_get_or_create(
@@ -88,8 +88,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
             sw_version=battery.battery.softwarever if battery.battery else "",
             hw_version=battery.battery.hardwarever if battery.battery else "",
         )
-    except Exception:
-        _LOGGER.exception("Exception during getting battery data")
+
+        hass.data[DOMAIN][entry.entry_id]["battery_coordinator"] = battery_coordinator
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
