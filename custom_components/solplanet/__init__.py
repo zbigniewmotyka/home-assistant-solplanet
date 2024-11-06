@@ -18,10 +18,7 @@ from .const import (
     DOMAIN,
     MANUFACTURER,
 )
-from .coordinator import (
-    SolplanetBatteryDataUpdateCoordinator,
-    SolplanetInverterDataUpdateCoordinator,
-)
+from .coordinator import SolplanetDataUpdateCoordinator
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
@@ -50,16 +47,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
 
     device_registry = dr.async_get(hass)
 
-    monitor = await api.get_monitor_info()
+    coordinator = SolplanetDataUpdateCoordinator(hass, api, entry.data[CONF_INTERVAL])
+    hass.data[DOMAIN][entry.entry_id]["coordinator"] = coordinator
+    await coordinator.async_config_entry_first_refresh()
 
-    inverters_coordinator = SolplanetInverterDataUpdateCoordinator(
-        hass, api, entry.data[CONF_INTERVAL]
-    )
-    await inverters_coordinator.async_config_entry_first_refresh()
+    for inverter_isn in coordinator.data["inverter"]:
+        inverter_info = coordinator.data["inverter"][inverter_isn]["info"]
 
-    inverters_info = await api.get_inverter_info()
-
-    for inverter_info in inverters_info.inv:
         device_registry.async_get_or_create(
             config_entry_id=entry.entry_id,
             identifiers={(DOMAIN, inverter_info.isn or "")},
@@ -70,26 +64,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
             sw_version=f"Master: {inverter_info.msw}, Slave: {inverter_info.ssw}, Security: {inverter_info.tsw}",
         )
 
-    hass.data[DOMAIN][entry.entry_id]["inverters_coordinator"] = inverters_coordinator
-
-    if monitor.isStorage():
-        battery_coordinator = SolplanetBatteryDataUpdateCoordinator(
-            hass, api, entry.data[CONF_INTERVAL]
-        )
-        await battery_coordinator.async_config_entry_first_refresh()
-
-        battery = await api.get_battery_info()
+    for battery_isn in coordinator.data["battery"]:
+        battery_info = coordinator.data["battery"][battery_isn]["info"]
 
         device_registry.async_get_or_create(
             config_entry_id=entry.entry_id,
-            identifiers={(DOMAIN, f"{BATTERY_IDENTIFIER}_{battery.isn or ""}")},
-            name=f"Battery ({battery.isn})",
-            serial_number=battery.isn,
-            sw_version=battery.battery.softwarever if battery.battery else "",
-            hw_version=battery.battery.hardwarever if battery.battery else "",
+            identifiers={(DOMAIN, f"{BATTERY_IDENTIFIER}_{battery_info.isn or ""}")},
+            name=f"Battery ({battery_info.isn})",
+            serial_number=battery_info.isn,
+            sw_version=battery_info.battery.softwarever if battery_info.battery else "",
+            hw_version=battery_info.battery.hardwarever if battery_info.battery else "",
         )
-
-        hass.data[DOMAIN][entry.entry_id]["battery_coordinator"] = battery_coordinator
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
