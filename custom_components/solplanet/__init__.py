@@ -11,14 +11,22 @@ import homeassistant.helpers.config_validation as cv
 import homeassistant.helpers.device_registry as dr
 
 from .client import SolplanetApi, SolplanetClient
-from .const import CONF_INTERVAL, DEFAULT_INTERVAL, DOMAIN, MANUFACTURER
-from .coordinator import SolplanetInverterDataUpdateCoordinator
+from .const import (
+    BATTERY_IDENTIFIER,
+    CONF_INTERVAL,
+    DEFAULT_INTERVAL,
+    DOMAIN,
+    MANUFACTURER,
+)
+from .coordinator import SolplanetDataUpdateCoordinator
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
 _LOGGER = logging.getLogger(__name__)
 
 type SolplanetConfigEntry = ConfigEntry[SolplanetApi]  # noqa: F821
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup(hass: HomeAssistant, entry: SolplanetConfigEntry) -> bool:
@@ -33,20 +41,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
 
     client = SolplanetClient(entry.data[CONF_HOST], hass)
     api = SolplanetApi(client)
-
-    coordinator = SolplanetInverterDataUpdateCoordinator(
-        hass, api, entry.data[CONF_INTERVAL]
-    )
-    await coordinator.async_config_entry_first_refresh()
-    hass.data[DOMAIN][entry.entry_id] = coordinator
-
     entry.runtime_data = api
 
-    inverters_info = await api.get_inverter_info()
+    hass.data[DOMAIN][entry.entry_id] = {}
 
     device_registry = dr.async_get(hass)
 
-    for inverter_info in inverters_info.inv:
+    coordinator = SolplanetDataUpdateCoordinator(hass, api, entry.data[CONF_INTERVAL])
+    hass.data[DOMAIN][entry.entry_id]["coordinator"] = coordinator
+    await coordinator.async_config_entry_first_refresh()
+
+    for inverter_isn in coordinator.data["inverter"]:
+        inverter_info = coordinator.data["inverter"][inverter_isn]["info"]
+
         device_registry.async_get_or_create(
             config_entry_id=entry.entry_id,
             identifiers={(DOMAIN, inverter_info.isn or "")},
@@ -55,6 +62,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
             manufacturer=MANUFACTURER,
             serial_number=inverter_info.isn,
             sw_version=f"Master: {inverter_info.msw}, Slave: {inverter_info.ssw}, Security: {inverter_info.tsw}",
+        )
+
+    for battery_isn in coordinator.data["battery"]:
+        battery_info = coordinator.data["battery"][battery_isn]["info"]
+
+        device_registry.async_get_or_create(
+            config_entry_id=entry.entry_id,
+            identifiers={(DOMAIN, f"{BATTERY_IDENTIFIER}_{battery_info.isn or ""}")},
+            name=f"Battery ({battery_info.isn})",
+            serial_number=battery_info.isn,
+            sw_version=battery_info.battery.softwarever if battery_info.battery else "",
+            hw_version=battery_info.battery.hardwarever if battery_info.battery else "",
         )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

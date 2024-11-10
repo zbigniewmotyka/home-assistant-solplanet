@@ -13,8 +13,8 @@ from .const import DOMAIN
 _LOGGER = logging.getLogger(__name__)
 
 
-class SolplanetInverterDataUpdateCoordinator(DataUpdateCoordinator):
-    """Solplanet coordinator."""
+class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
+    """Solplanet inverter coordinator."""
 
     def __init__(
         self, hass: HomeAssistant, api: SolplanetApi, update_interval: int
@@ -22,7 +22,7 @@ class SolplanetInverterDataUpdateCoordinator(DataUpdateCoordinator):
         """Create instance of solplanet coordinator."""
         self.__api = api
 
-        _LOGGER.debug("Creating coordinator")
+        _LOGGER.debug("Creating inverter coordinator")
 
         super().__init__(
             hass,
@@ -34,14 +34,33 @@ class SolplanetInverterDataUpdateCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self):
         """Fetch data from REST API."""
         try:
-            _LOGGER.debug("Updating data")
-            inverters = await self.__api.get_inverter_info()
-            isns = [x.isn for x in inverters.inv]
+            _LOGGER.debug("Updating inverters data")
+            inverters_info = await self.__api.get_inverter_info()
+
+            isns = [x.isn for x in inverters_info.inv]
             inverters_data = await asyncio.gather(
                 *[self.__api.get_inverter_data(isn) for isn in isns]
             )
-            _LOGGER.debug("Data updated")
-            return {isns[i]: inverters_data[i] for i in range(len(isns))}
+
+            battery_isns = [x.isn for x in inverters_info.inv if x.isStorage()]
+            battery_data = await asyncio.gather(
+                *[self.__api.get_battery_data(isn) for isn in battery_isns]
+            )
+            battery_info = await asyncio.gather(
+                *[self.__api.get_battery_info(isn) for isn in battery_isns]
+            )
+
+            _LOGGER.debug("Inverters data updated")
+            return {
+                "inverter": {
+                    isns[i]: {"data": inverters_data[i], "info": inverters_info.inv[i]}
+                    for i in range(len(isns))
+                },
+                "battery": {
+                    battery_isns[i]: {"data": battery_data[i], "info": battery_info[i]}
+                    for i in range(len(battery_isns))
+                },
+            }
 
         except Exception as err:
             _LOGGER.debug(err, stack_info=True, exc_info=True)
