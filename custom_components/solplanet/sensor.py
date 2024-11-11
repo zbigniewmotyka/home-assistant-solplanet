@@ -75,7 +75,6 @@ class SolplanetSensor(CoordinatorEntity, SensorEntity):
         )
         self._isn = isn
         self._attr_native_value = self._get_value_from_coordinator()
-        self._attr_entity_registry_enabled_default = self._attr_native_value is not None
 
     @callback
     def _handle_coordinator_update(self) -> None:

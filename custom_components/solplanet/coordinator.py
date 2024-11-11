@@ -51,10 +51,14 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
             )
 
             meter = None
+            meter_sn = isns[0]
             try:
                 meter_data = await self.__api.get_meter_data()
                 meter_info = await self.__api.get_meter_info()
                 meter = {"data": meter_data, "info": meter_info}
+
+                if meter_info.sn is not None:
+                    meter_sn = meter_info.sn
             except Exception as err:  # noqa: BLE001
                 _LOGGER.debug(err, stack_info=True, exc_info=True)
 
@@ -68,7 +72,7 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
                     battery_isns[i]: {"data": battery_data[i], "info": battery_info[i]}
                     for i in range(len(battery_isns))
                 },
-                METER_IDENTIFIER: {isns[0]: meter} if meter else {},
+                METER_IDENTIFIER: {meter_sn: meter} if meter else {},
             }
 
         except Exception as err:

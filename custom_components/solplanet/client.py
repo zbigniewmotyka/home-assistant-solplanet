@@ -171,6 +171,13 @@ class GetMeterInfoResponse:
     total_pac: int | None = None
     total_fac: int | None = None
     meter_pac: int | None = None
+    sn: str | None = None
+    manufactory: str | None = None
+    type: str | None = None
+    name: str | None = None
+    model: int | None = None
+    abs: int | None = None
+    offset: int | None = None
 
 
 @dataclass

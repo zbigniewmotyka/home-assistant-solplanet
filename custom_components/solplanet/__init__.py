@@ -79,10 +79,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
         )
 
     for meter_isn in coordinator.data[METER_IDENTIFIER]:
+        meter_info = coordinator.data[METER_IDENTIFIER][meter_isn]["info"]
+
         device_registry.async_get_or_create(
             config_entry_id=entry.entry_id,
             identifiers={(DOMAIN, f"{METER_IDENTIFIER}_{meter_isn or ""}")},
-            name="Meter",
+            name="Energy meter",
+            serial_number=meter_info.sn,
+            manufacturer=meter_info.manufactory,
+            model=meter_info.name,
         )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
