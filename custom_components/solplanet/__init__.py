@@ -16,7 +16,9 @@ from .const import (
     CONF_INTERVAL,
     DEFAULT_INTERVAL,
     DOMAIN,
+    INVERTER_IDENTIFIER,
     MANUFACTURER,
+    METER_IDENTIFIER,
 )
 from .coordinator import SolplanetDataUpdateCoordinator
 
@@ -51,8 +53,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
     hass.data[DOMAIN][entry.entry_id]["coordinator"] = coordinator
     await coordinator.async_config_entry_first_refresh()
 
-    for inverter_isn in coordinator.data["inverter"]:
-        inverter_info = coordinator.data["inverter"][inverter_isn]["info"]
+    for inverter_isn in coordinator.data[INVERTER_IDENTIFIER]:
+        inverter_info = coordinator.data[INVERTER_IDENTIFIER][inverter_isn]["info"]
 
         device_registry.async_get_or_create(
             config_entry_id=entry.entry_id,
@@ -64,8 +66,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
             sw_version=f"Master: {inverter_info.msw}, Slave: {inverter_info.ssw}, Security: {inverter_info.tsw}",
         )
 
-    for battery_isn in coordinator.data["battery"]:
-        battery_info = coordinator.data["battery"][battery_isn]["info"]
+    for battery_isn in coordinator.data[BATTERY_IDENTIFIER]:
+        battery_info = coordinator.data[BATTERY_IDENTIFIER][battery_isn]["info"]
 
         device_registry.async_get_or_create(
             config_entry_id=entry.entry_id,
@@ -74,6 +76,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
             serial_number=battery_info.isn,
             sw_version=battery_info.battery.softwarever if battery_info.battery else "",
             hw_version=battery_info.battery.hardwarever if battery_info.battery else "",
+        )
+
+    for meter_isn in coordinator.data[METER_IDENTIFIER]:
+        meter_info = coordinator.data[METER_IDENTIFIER][meter_isn]["info"]
+
+        device_registry.async_get_or_create(
+            config_entry_id=entry.entry_id,
+            identifiers={(DOMAIN, f"{METER_IDENTIFIER}_{meter_isn or ""}")},
+            name="Energy meter",
+            serial_number=meter_info.sn,
+            manufacturer=meter_info.manufactory,
+            model=meter_info.name,
         )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
