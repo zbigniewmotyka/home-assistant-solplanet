@@ -33,7 +33,7 @@ from homeassistant.helpers.update_coordinator import (
 
 from . import INVERTER_IDENTIFIER, SolplanetConfigEntry
 from .client import GetInverterDataResponse
-from .const import BATTERY_IDENTIFIER, DOMAIN, METER_IDENTIFIER
+from .const import BATTERY_IDENTIFIER, DOMAIN, INVERTER_ERROR_CODES, METER_IDENTIFIER
 from .coordinator import SolplanetDataUpdateCoordinator
 
 
@@ -206,6 +206,15 @@ def _create_mppt_power_mapper(index: int) -> abc.Callable:
     return map_mppt_power
 
 
+def _create_dict_mapper(
+    dictionary: dict, default: str = "Unknown (code: {value})"
+) -> abc.Callable:
+    def map_dict(value: str | int) -> str:
+        return dictionary.get(value, default.replace("{value}", str(value)))
+
+    return map_dict
+
+
 def create_inverter_entites_description(
     coordinator: SolplanetDataUpdateCoordinator, isn: str
 ) -> list[SolplanetSensorEntityDescription]:
@@ -231,6 +240,7 @@ def create_inverter_entites_description(
             data_field_device_type=INVERTER_IDENTIFIER,
             data_field_data_type="data",
             data_field_path=["err"],
+            data_field_value_mapper=_create_dict_mapper(INVERTER_ERROR_CODES),
             device_class=SensorDeviceClass.ENUM,
         ),
         SolplanetSensorEntityDescription(
