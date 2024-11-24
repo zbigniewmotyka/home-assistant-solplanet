@@ -212,6 +212,14 @@ def create_inverter_entites_description(
     """Create entities for inverter."""
     sensors = [
         SolplanetSensorEntityDescription(
+            key=f"{isn}_flg",
+            name="Inverter Status",
+            data_field_device_type=INVERTER_IDENTIFIER,
+            data_field_data_type="data",
+            data_field_path=["flg"],
+            device_class=SensorDeviceClass.ENUM,
+        ),
+        SolplanetSensorEntityDescription(
             key=f"{isn}_err",
             name="Error code",
             data_field_device_type=INVERTER_IDENTIFIER,
