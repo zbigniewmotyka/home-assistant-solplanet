@@ -138,3 +138,7 @@ INVERTER_ERROR_CODES = {
     2046: "2046 - Current DCover",
     2047: "2047 - Voltage DCover",
 }
+BATTERY_COMMUNICATION_STATUS = {
+    10: "Normal",
+    11: "Virtual battery",
+}

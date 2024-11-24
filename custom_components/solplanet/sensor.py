@@ -33,7 +33,13 @@ from homeassistant.helpers.update_coordinator import (
 
 from . import INVERTER_IDENTIFIER, SolplanetConfigEntry
 from .client import GetInverterDataResponse
-from .const import BATTERY_IDENTIFIER, DOMAIN, INVERTER_ERROR_CODES, METER_IDENTIFIER
+from .const import (
+    BATTERY_COMMUNICATION_STATUS,
+    BATTERY_IDENTIFIER,
+    DOMAIN,
+    INVERTER_ERROR_CODES,
+    METER_IDENTIFIER,
+)
 from .coordinator import SolplanetDataUpdateCoordinator
 
 
@@ -520,6 +526,9 @@ def create_battery_entites_description(
             data_field_device_type=BATTERY_IDENTIFIER,
             data_field_data_type="data",
             data_field_path=["cst"],
+            data_field_value_mapper=_create_dict_mapper(
+                BATTERY_COMMUNICATION_STATUS, "Fault (code: {value})"
+            ),
         ),
         SolplanetSensorEntityDescription(
             key=f"{isn}_bst",
