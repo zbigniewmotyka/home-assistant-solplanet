@@ -121,6 +121,66 @@ class GetInverterInfoResponse:
 
 
 @dataclass
+class GetMeterDataResponse:
+    """Get meter data response model.
+
+    Attributes
+    ----------
+    flg : int
+        TBD ??
+    tim : str
+        Datetime in format YYYYMMDDHHMMSS
+    pac : int
+        AC real power [W]
+    itd : int
+        Input today
+    otd : int
+        Output today
+    iet : int
+        Input total
+    oet : int
+        Output total
+    mod : int
+        TBD ??
+    enb : int
+        TBD ??
+
+    """
+
+    flg: int | None = None
+    tim: str | None = None
+    pac: int | None = None
+    itd: int | None = None
+    otd: int | None = None
+    iet: int | None = None
+    oet: int | None = None
+    mod: int | None = None
+    enb: int | None = None
+
+
+@dataclass
+class GetMeterInfoResponse:
+    """Get meter info response."""
+
+    mod: int | None = None
+    enb: int | None = None
+    exp_m: int | None = None
+    regulate: int | None = None
+    enb_PF: int | None = None  # noqa: N815
+    target_PF: int | None = None  # noqa: N815
+    total_pac: int | None = None
+    total_fac: int | None = None
+    meter_pac: int | None = None
+    sn: str | None = None
+    manufactory: str | None = None
+    type: str | None = None
+    name: str | None = None
+    model: int | None = None
+    abs: int | None = None
+    offset: int | None = None
+
+
+@dataclass
 class GetBatteryDataResponse:
     """Get battery data response model.
 
@@ -283,6 +343,18 @@ class SolplanetApi:
             for item in response["inv"]
         ]
         return self._create_class_from_dict(GetInverterInfoResponse, response)
+
+    async def get_meter_data(self) -> GetMeterDataResponse:
+        """Get meter data."""
+        _LOGGER.debug("Getting meter data")
+        response = await self.client.get("getdevdata.cgi?device=3")
+        return self._create_class_from_dict(GetMeterDataResponse, response)
+
+    async def get_meter_info(self) -> GetMeterInfoResponse:
+        """Get meter info."""
+        _LOGGER.debug("Getting meter info")
+        response = await self.client.get("getdev.cgi?device=3")
+        return self._create_class_from_dict(GetMeterInfoResponse, response)
 
     async def get_battery_data(self, sn: str) -> GetBatteryDataResponse:
         """Get battery data."""
