@@ -35,7 +35,15 @@ from . import INVERTER_IDENTIFIER, SolplanetConfigEntry
 from .client import GetInverterDataResponse
 from .const import (
     BATTERY_COMMUNICATION_STATUS,
+    BATTERY_ERRORS_1,
+    BATTERY_ERRORS_2,
+    BATTERY_ERRORS_3,
+    BATTERY_ERRORS_4,
     BATTERY_IDENTIFIER,
+    BATTERY_WARNINGS_1,
+    BATTERY_WARNINGS_2,
+    BATTERY_WARNINGS_3,
+    BATTERY_WARNINGS_4,
     DOMAIN,
     INVERTER_ERROR_CODES,
     METER_IDENTIFIER,
@@ -219,6 +227,30 @@ def _create_dict_mapper(
         return dictionary.get(value, default.replace("{value}", str(value)))
 
     return map_dict
+
+
+def _create_dict_set_mapper(
+    length: int,
+    errors: dict[int, str],
+    none_value: str,
+    default: str = "Unknown (code: {value})",
+):
+    def map_set_dict(value: int | None) -> str | None:
+        if value is None:
+            return value
+
+        binary_str = bin(value)[2:].zfill(length)
+        positions: list[str] = [
+            errors.get(i, default.replace("{value}", str(i)))
+            for i in range(length)
+            if binary_str[i] == "0"
+        ]
+
+        items = list(filter(lambda x: x is not None, positions))
+
+        return none_value if not items else ", ".join(items)
+
+    return map_set_dict
 
 
 def create_inverter_entites_description(
@@ -541,21 +573,87 @@ def create_battery_entites_description(
                 2: "Charging",
                 3: "Discharging",
                 4: "Fault"
-            }.get(x, f"Unknown (code: {x})"),            
-        ),        
+            }.get(x, f"Unknown (code: {x})"),
+        ),
         SolplanetSensorEntityDescription(
             key=f"{isn}_eb1",
-            name="Battery error code",
+            name="Battery errors 1",
             data_field_device_type=BATTERY_IDENTIFIER,
             data_field_data_type="data",
             data_field_path=["eb1"],
+            data_field_value_mapper=_create_dict_set_mapper(
+                16, BATTERY_ERRORS_1, "No errors"
+            ),
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_eb2",
+            name="Battery errors 2",
+            data_field_device_type=BATTERY_IDENTIFIER,
+            data_field_data_type="data",
+            data_field_path=["eb2"],
+            data_field_value_mapper=_create_dict_set_mapper(
+                16, BATTERY_ERRORS_2, "No errors"
+            ),
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_eb3",
+            name="Battery errors 3",
+            data_field_device_type=BATTERY_IDENTIFIER,
+            data_field_data_type="data",
+            data_field_path=["eb3"],
+            data_field_value_mapper=_create_dict_set_mapper(
+                16, BATTERY_ERRORS_3, "No errors"
+            ),
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_eb4",
+            name="Battery errors 4",
+            data_field_device_type=BATTERY_IDENTIFIER,
+            data_field_data_type="data",
+            data_field_path=["eb4"],
+            data_field_value_mapper=_create_dict_set_mapper(
+                16, BATTERY_ERRORS_4, "No errors"
+            ),
         ),
         SolplanetSensorEntityDescription(
             key=f"{isn}_wb1",
-            name="Battery warning code",
+            name="Battery warnings 1",
             data_field_device_type=BATTERY_IDENTIFIER,
             data_field_data_type="data",
             data_field_path=["wb1"],
+            data_field_value_mapper=_create_dict_set_mapper(
+                16, BATTERY_WARNINGS_1, "No warnings"
+            ),
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_wb2",
+            name="Battery warnings 2",
+            data_field_device_type=BATTERY_IDENTIFIER,
+            data_field_data_type="data",
+            data_field_path=["wb2"],
+            data_field_value_mapper=_create_dict_set_mapper(
+                16, BATTERY_WARNINGS_2, "No warnings"
+            ),
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_wb3",
+            name="Battery warnings 3",
+            data_field_device_type=BATTERY_IDENTIFIER,
+            data_field_data_type="data",
+            data_field_path=["wb3"],
+            data_field_value_mapper=_create_dict_set_mapper(
+                16, BATTERY_WARNINGS_3, "No warnings"
+            ),
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_wb4",
+            name="Battery warnings 4",
+            data_field_device_type=BATTERY_IDENTIFIER,
+            data_field_data_type="data",
+            data_field_path=["wb4"],
+            data_field_value_mapper=_create_dict_set_mapper(
+                16, BATTERY_WARNINGS_4, "No warnings"
+            ),
         ),
         SolplanetSensorEntityDescription(
             key=f"{isn}_ppv",

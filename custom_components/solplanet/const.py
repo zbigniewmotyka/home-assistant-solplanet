@@ -142,3 +142,56 @@ BATTERY_COMMUNICATION_STATUS = {
     10: "Normal",
     11: "Virtual battery",
 }
+BATTERY_ERRORS_1 = {
+    0: "Communication data error",
+    1: "Electric core or module overvoltage",
+    2: "Electric core or module undervoltage",
+    3: "Electric core temperature is too high",
+    4: "Electric core temperature is too low",
+    5: "Discharge overcurrent",
+    6: "Charge overcurrent",
+    7: "Internal communication error",
+    8: "Electric core imbalance",
+    9: "Low system insulation",
+    10: "Voltage sensor failure",
+    11: "Temperature sensor failure",
+    12: "Contactor failure",
+    13: "Power-on self-test failure",
+    14: "IC self test failure",
+}
+BATTERY_ERRORS_2 = {
+    0: "Battery voltage self-test failure",
+    1: "System voltage self-test failure",
+    2: "System insulation self check failure",
+    3: "RTC failure",
+    4: "EEPROM failure",
+    5: "Flash failure",
+    6: "AFE failure",  # codespell:ignore
+    7: "Insulation sampling IC failure",
+    9: "Current sampling IC failure",
+    10: "HDC failure",
+    11: "Daisy chain failure",
+    12: "Pre charge failure",
+}
+BATTERY_ERRORS_3 = {
+    0: "Battery damage and failure",
+    1: "Input voltage failure",
+    2: "Input reverse failure",
+    3: "Circuit breaker failure",
+}
+BATTERY_ERRORS_4: dict[int, str] = {}
+BATTERY_WARNINGS_1 = {
+    0: "Communication data error",
+    1: "Electric core or module voltage is high",
+    2: "Electric core or module voltage is low",
+    3: "Electric core temperature is too high",
+    4: "Electric core temperature is too low",
+    5: "High discharge current",
+    6: "High charging current",
+    7: "Internal communication failed",
+    8: "Electric core imbalance",
+    9: "Low system insulation",
+}
+BATTERY_WARNINGS_2: dict[int, str] = {}
+BATTERY_WARNINGS_3: dict[int, str] = {}
+BATTERY_WARNINGS_4: dict[int, str] = {}

@@ -213,7 +213,13 @@ class GetBatteryDataResponse:
     cst: int | None = None
     bst: int | None = None
     eb1: int | None = None
+    eb2: int | None = None
+    eb3: int | None = None
+    eb4: int | None = None
     wb1: int | None = None
+    wb2: int | None = None
+    wb3: int | None = None
+    wb4: int | None = None
     vb: int | None = None
     cb: int | None = None
     pb: int | None = None
