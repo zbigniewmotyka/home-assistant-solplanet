@@ -212,6 +212,20 @@ def create_inverter_entites_description(
     """Create entities for inverter."""
     sensors = [
         SolplanetSensorEntityDescription(
+            key=f"{isn}_flg",
+            name="Inverter Status",
+            data_field_device_type=INVERTER_IDENTIFIER,
+            data_field_data_type="data",
+            data_field_path=["flg"],
+            device_class=SensorDeviceClass.ENUM,
+            data_field_value_mapper=lambda x: {
+                0: "Wait",
+                1: "Normal",
+                2: "Fault",
+                4: "Checking"
+            }.get(x, f"Unknown (code: {x})"),
+        ),
+        SolplanetSensorEntityDescription(
             key=f"{isn}_err",
             name="Error code",
             data_field_device_type=INVERTER_IDENTIFIER,
@@ -503,7 +517,13 @@ def create_battery_entites_description(
             data_field_device_type=BATTERY_IDENTIFIER,
             data_field_data_type="data",
             data_field_path=["bst"],
-        ),
+            data_field_value_mapper=lambda x: {
+                1: "Idle",
+                2: "Charging",
+                3: "Discharging",
+                4: "Fault"
+            }.get(x, f"Unknown (code: {x})"),            
+        ),        
         SolplanetSensorEntityDescription(
             key=f"{isn}_eb1",
             name="Battery error code",

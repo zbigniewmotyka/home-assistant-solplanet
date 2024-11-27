@@ -4,11 +4,11 @@
 [![GitHub Release](https://img.shields.io/github/release/zbigniewmotyka/home-assistant-solplanet.svg)](https://github.com/zbigniewmotyka/home-assistant-solplanet/releases/)
 
 ![Solplanet-Logo-Gradient](https://github.com/user-attachments/assets/9675dcad-d32d-4605-972c-b3e244eb1ee8) \
-The integration locally pool from Solplanet inverter and exposes Inverter, Battery and Smart meter information. \
+The integration locally poll from Solplanet inverter and exposes Inverter, Battery and Smart meter information. \
 This information can be used into Home Assistant Energy Dashboard.
 
 ## Features
-- Single and Three Phase Inverters
+- Support Single and Three Phase Inverters
 - Sensor includes Inverter, Battery and Smart Meter
 
 ## Installation
@@ -31,11 +31,11 @@ Assign these sensors into the Energy Dashboard
 
 | **Section**      | **Home Assistant** |  **Solplanet**           |
 |:----------------:|:------------------:|:------------------------:|
-| Electricity Grid | Grid Consumption   | Grid Energy In Total     |
-| Electricity Grid | Return to Grid     | Grid Energy Out Total    |
 | Solar Panels     | Solar Production   | PV Energy Today          |
+| Electricity Grid | Grid Consumption   | Grid Energy In Total     |
+|                  | Return to Grid     | Grid Energy Out Total    |
 | Battery Storage  | Energy Incoming    | Battery for Charging     |
-| Battery Storage  | Energy Outgoing    | Battery for Discharging  |
+|                  | Energy Outgoing    | Battery for Discharging  |
 
 ![386017334-b4899f13-82b7-4be4-938b-e5c2f0670adf](https://github.com/user-attachments/assets/c2660112-ad3b-4ee7-b6a6-5c73fb7f42bb)
 
@@ -43,5 +43,4 @@ Assign these sensors into the Energy Dashboard
 > You may choose to define the tariff according to your local electrical utility service.
 
 ![image](https://github.com/user-attachments/assets/98e4db8e-88b6-4af7-b8b0-c5b6b2956530) ![image](https://github.com/user-attachments/assets/1a8c213a-e1aa-42b7-9614-6252eb378a0a)
-
 
