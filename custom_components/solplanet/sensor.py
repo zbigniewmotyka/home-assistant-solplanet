@@ -33,7 +33,23 @@ from homeassistant.helpers.update_coordinator import (
 
 from . import INVERTER_IDENTIFIER, SolplanetConfigEntry
 from .client import GetInverterDataResponse
-from .const import BATTERY_IDENTIFIER, DOMAIN, METER_IDENTIFIER
+from .const import (
+    BATTERY_COMMUNICATION_STATUS,
+    BATTERY_ERRORS_1,
+    BATTERY_ERRORS_2,
+    BATTERY_ERRORS_3,
+    BATTERY_ERRORS_4,
+    BATTERY_IDENTIFIER,
+    BATTERY_STATUS,
+    BATTERY_WARNINGS_1,
+    BATTERY_WARNINGS_2,
+    BATTERY_WARNINGS_3,
+    BATTERY_WARNINGS_4,
+    DOMAIN,
+    INVERTER_ERROR_CODES,
+    INVERTER_STATUS,
+    METER_IDENTIFIER,
+)
 from .coordinator import SolplanetDataUpdateCoordinator
 
 
@@ -206,6 +222,49 @@ def _create_mppt_power_mapper(index: int) -> abc.Callable:
     return map_mppt_power
 
 
+def _create_dict_mapper(
+    dictionary: dict, default: str = "Unknown (code: {value})"
+) -> abc.Callable:
+    def map_dict(value: str | int) -> str:
+        return dictionary.get(value, default.replace("{value}", str(value)))
+
+    return map_dict
+
+
+def _create_dict_set_mapper(
+    length: int,
+    fields: list[str],
+    errors: list[dict[int, str]],
+    none_value: str,
+    default: str = "Unknown (code: {value})",
+):
+    def map_set_dict(data: dict[str, int]) -> str:
+        messages: list[str] = []
+        for idx, field in enumerate(fields):
+            value = getattr(data, field)
+
+            if value is None:
+                continue
+
+            binary_str = bin(value)[2:].zfill(length)
+            positions: list[str] = [
+                errors[idx].get(i, default.replace("{value}", str(i)))
+                for i in range(length)
+                if binary_str[length - 1 - i] == "0"
+            ]
+
+            messages.extend(filter(lambda x: x is not None, positions))
+
+        if not messages:
+            return none_value
+
+        result = ", ".join(messages)
+
+        return result if len(result) <= 255 else f"{result[:252]}..."
+
+    return map_set_dict
+
+
 def create_inverter_entites_description(
     coordinator: SolplanetDataUpdateCoordinator, isn: str
 ) -> list[SolplanetSensorEntityDescription]:
@@ -218,12 +277,7 @@ def create_inverter_entites_description(
             data_field_data_type="data",
             data_field_path=["flg"],
             device_class=SensorDeviceClass.ENUM,
-            data_field_value_mapper=lambda x: {
-                0: "Wait",
-                1: "Normal",
-                2: "Fault",
-                4: "Checking"
-            }.get(x, f"Unknown (code: {x})"),
+            data_field_value_mapper=_create_dict_mapper(INVERTER_STATUS),
         ),
         SolplanetSensorEntityDescription(
             key=f"{isn}_err",
@@ -231,6 +285,7 @@ def create_inverter_entites_description(
             data_field_device_type=INVERTER_IDENTIFIER,
             data_field_data_type="data",
             data_field_path=["err"],
+            data_field_value_mapper=_create_dict_mapper(INVERTER_ERROR_CODES),
             device_class=SensorDeviceClass.ENUM,
         ),
         SolplanetSensorEntityDescription(
@@ -510,6 +565,9 @@ def create_battery_entites_description(
             data_field_device_type=BATTERY_IDENTIFIER,
             data_field_data_type="data",
             data_field_path=["cst"],
+            data_field_value_mapper=_create_dict_mapper(
+                BATTERY_COMMUNICATION_STATUS, "Fault (code: {value})"
+            ),
         ),
         SolplanetSensorEntityDescription(
             key=f"{isn}_bst",
@@ -517,26 +575,45 @@ def create_battery_entites_description(
             data_field_device_type=BATTERY_IDENTIFIER,
             data_field_data_type="data",
             data_field_path=["bst"],
-            data_field_value_mapper=lambda x: {
-                1: "Idle",
-                2: "Charging",
-                3: "Discharging",
-                4: "Fault"
-            }.get(x, f"Unknown (code: {x})"),            
-        ),        
+            data_field_value_mapper=_create_dict_mapper(BATTERY_STATUS),
+        ),
         SolplanetSensorEntityDescription(
             key=f"{isn}_eb1",
-            name="Battery error code",
+            name="Battery errors",
             data_field_device_type=BATTERY_IDENTIFIER,
             data_field_data_type="data",
-            data_field_path=["eb1"],
+            data_field_path=[],
+            data_field_value_mapper=_create_dict_set_mapper(
+                16,
+                ["eb1", "eb2", "eb3", "eb4"],
+                [
+                    BATTERY_ERRORS_1,
+                    BATTERY_ERRORS_2,
+                    BATTERY_ERRORS_3,
+                    BATTERY_ERRORS_4,
+                ],
+                "No errors",
+            ),
+            unique_id_suffix="eb1",
         ),
         SolplanetSensorEntityDescription(
             key=f"{isn}_wb1",
-            name="Battery warning code",
+            name="Battery warnings",
             data_field_device_type=BATTERY_IDENTIFIER,
             data_field_data_type="data",
-            data_field_path=["wb1"],
+            data_field_path=[],
+            data_field_value_mapper=_create_dict_set_mapper(
+                16,
+                ["wb1", "wb2", "wb3", "wb4"],
+                [
+                    BATTERY_WARNINGS_1,
+                    BATTERY_WARNINGS_2,
+                    BATTERY_WARNINGS_3,
+                    BATTERY_WARNINGS_4,
+                ],
+                "No warnings",
+            ),
+            unique_id_suffix="wb1",
         ),
         SolplanetSensorEntityDescription(
             key=f"{isn}_ppv",

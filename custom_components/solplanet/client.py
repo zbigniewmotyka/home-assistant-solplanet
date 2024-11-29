@@ -212,8 +212,14 @@ class GetBatteryDataResponse:
     etopv: int | None = None
     cst: int | None = None
     bst: int | None = None
-    eb1: int | None = None
-    wb1: int | None = None
+    eb1: int = 65535
+    eb2: int = 65535
+    eb3: int = 65535
+    eb4: int = 65535
+    wb1: int = 65535
+    wb2: int = 65535
+    wb3: int = 65535
+    wb4: int = 65535
     vb: int | None = None
     cb: int | None = None
     pb: int | None = None
