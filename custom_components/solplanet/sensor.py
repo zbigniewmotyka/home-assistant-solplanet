@@ -40,12 +40,14 @@ from .const import (
     BATTERY_ERRORS_3,
     BATTERY_ERRORS_4,
     BATTERY_IDENTIFIER,
+    BATTERY_STATUS,
     BATTERY_WARNINGS_1,
     BATTERY_WARNINGS_2,
     BATTERY_WARNINGS_3,
     BATTERY_WARNINGS_4,
     DOMAIN,
     INVERTER_ERROR_CODES,
+    INVERTER_STATUS,
     METER_IDENTIFIER,
 )
 from .coordinator import SolplanetDataUpdateCoordinator
@@ -275,12 +277,7 @@ def create_inverter_entites_description(
             data_field_data_type="data",
             data_field_path=["flg"],
             device_class=SensorDeviceClass.ENUM,
-            data_field_value_mapper=lambda x: {
-                0: "Wait",
-                1: "Normal",
-                2: "Fault",
-                4: "Checking",
-            }.get(x, f"Unknown (code: {x})"),
+            data_field_value_mapper=_create_dict_mapper(INVERTER_STATUS),
         ),
         SolplanetSensorEntityDescription(
             key=f"{isn}_err",
@@ -578,12 +575,7 @@ def create_battery_entites_description(
             data_field_device_type=BATTERY_IDENTIFIER,
             data_field_data_type="data",
             data_field_path=["bst"],
-            data_field_value_mapper=lambda x: {
-                1: "Idle",
-                2: "Charging",
-                3: "Discharging",
-                4: "Fault",
-            }.get(x, f"Unknown (code: {x})"),
+            data_field_value_mapper=_create_dict_mapper(BATTERY_STATUS),
         ),
         SolplanetSensorEntityDescription(
             key=f"{isn}_eb1",

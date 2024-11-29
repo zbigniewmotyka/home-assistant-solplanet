@@ -138,9 +138,21 @@ INVERTER_ERROR_CODES = {
     2046: "2046 - Current DCover",
     2047: "2047 - Voltage DCover",
 }
+INVERTER_STATUS = {
+    0: "Wait",
+    1: "Normal",
+    2: "Fault",
+    4: "Checking",
+}
 BATTERY_COMMUNICATION_STATUS = {
     10: "Normal",
     11: "Virtual battery",
+}
+BATTERY_STATUS = {
+    1: "Idle",
+    2: "Charging",
+    3: "Discharging",
+    4: "Fault",
 }
 BATTERY_ERRORS_1 = {
     0: "Communication data error",
