@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from inspect import signature
 import logging
+from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -307,6 +308,77 @@ class GetBatteryInfoResponse:
     discharge_max: int | None = None
 
 
+@dataclass
+class SetBatteryConfigValueRequest:
+    """Set battery config value request."""
+
+    type: int
+    mod_r: int
+    sn: str | None
+    discharge_max: int | None
+    charge_max: int | None
+    muf: int | None
+    mod: int | None
+    num: int | None
+
+
+@dataclass
+class SetBatteryConfigRequest:
+    """Set battery config request."""
+
+    value: SetBatteryConfigValueRequest
+    device: int = 4
+    action: str = "setbattery"
+
+
+@dataclass
+class BatteryWorkMode:
+    """Represent data for battery work mode."""
+
+    name: str
+
+    mod_r: int
+    type: int
+
+
+class BatteryWorkModes:
+    """Helper to for BatteryWorkMode."""
+
+    _battery_modes: list[BatteryWorkMode] = [
+        BatteryWorkMode("Self-consumption mode", 2, 1),
+        BatteryWorkMode("Reserve power mode", 3, 1),
+        BatteryWorkMode("Custom mode", 4, 1),
+        BatteryWorkMode("Off-grid mode", 1, 2),
+    ]
+
+    def get_all_modes(self, type: int, mod_r: int) -> list[BatteryWorkMode]:
+        """Get all possible battery work modes."""
+        selected = next(
+            (x for x in self._battery_modes if x.mod_r == mod_r and x.type == type),
+            None,
+        )
+        result = []
+        result.extend(self._battery_modes)
+
+        if selected is None:
+            result.append(
+                BatteryWorkMode(f"Unknown (mod_r: {mod_r}, type: {type})", mod_r, type)
+            )
+
+        return result
+
+    def get_mode(self, type: int, mod_r: int) -> BatteryWorkMode | None:
+        """Get battery work mode by type and mod_r."""
+        return next(
+            (
+                x
+                for x in self.get_all_modes(type, mod_r)
+                if x.type == type and x.mod_r == mod_r
+            ),
+            None,
+        )
+
+
 class SolplanetClient:
     """Solplanet http client."""
 
@@ -323,6 +395,11 @@ class SolplanetClient:
     async def get(self, endpoint: str):
         """Make get request to specified endpoint."""
         response = await self.session.get(self.get_url(endpoint))
+        return await response.json(content_type=None)
+
+    async def post(self, endpoint: str, data: Any):
+        """Make get request to specified endpoint."""
+        response = await self.session.post(self.get_url(endpoint), json=data)
         return await response.json(content_type=None)
 
 
@@ -377,6 +454,22 @@ class SolplanetApi:
                 GetBatteryInfoItemResponse, response["battery"]
             )
         return self._create_class_from_dict(GetBatteryInfoResponse, response)
+
+    async def set_battery_work_mode(self, sn: str, mode: BatteryWorkMode) -> None:
+        """Set battery work mode."""
+        current_config = await self.get_battery_info(sn)
+        value = SetBatteryConfigValueRequest(
+            type=mode.type,
+            mod_r=mode.mod_r,
+            muf=current_config.muf,
+            mod=current_config.mod,
+            num=current_config.num,
+            sn=current_config.isn,
+            charge_max=current_config.charge_max,
+            discharge_max=current_config.discharge_max,
+        )
+        request = SetBatteryConfigRequest(value=value)
+        await self.client.post("setting.cgi", request)
 
     def _create_class_from_dict(self, cls, dict):
         return cls(**{k: v for k, v in dict.items() if k in signature(cls).parameters})
