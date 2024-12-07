@@ -51,7 +51,7 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
             )
 
             meter = None
-            meter_sn = isns[0]
+            meter_sn = isns[0] if len(isns) > 1 else None
             try:
                 meter_data = await self.__api.get_meter_data()
                 meter_info = await self.__api.get_meter_info()
@@ -83,7 +83,7 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
                     }
                     for i in range(len(battery_isns))
                 },
-                METER_IDENTIFIER: {meter_sn: meter} if meter else {},
+                METER_IDENTIFIER: {meter_sn: meter} if meter and meter_sn else {},
             }
 
         except Exception as err:
