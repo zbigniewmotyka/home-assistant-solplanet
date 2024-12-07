@@ -349,6 +349,7 @@ class BatteryWorkModes:
         BatteryWorkMode("Reserve power mode", 3, 1),
         BatteryWorkMode("Custom mode", 4, 1),
         BatteryWorkMode("Off-grid mode", 1, 2),
+        BatteryWorkMode("Time of use mode", 5, 1),        
     ]
 
     def get_all_modes(self, type: int, mod_r: int) -> list[BatteryWorkMode]:
