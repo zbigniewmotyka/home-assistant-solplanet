@@ -10,6 +10,7 @@ This information can be used into Home Assistant Energy Dashboard.
 ## Features
 - Support Single and Three Phase Inverters
 - Sensor includes Inverter, Battery and Smart Meter
+- Switch between battery modes
 
 ## Installation
 
