@@ -4,6 +4,7 @@ from collections import abc
 from dataclasses import dataclass
 import re
 from typing import Any
+import logging
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -51,6 +52,8 @@ from .const import (
     METER_IDENTIFIER,
 )
 from .coordinator import SolplanetDataUpdateCoordinator
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, kw_only=True)
