@@ -100,7 +100,9 @@ class SolplanetSensor(CoordinatorEntity, SensorEntity):
         """Handle updated data from the coordinator."""
         # Set the native value here so we can use it in available property
         # without having to recalculate it
-        self._attr_native_value = self._get_value_from_coordinator()
+        data = self._get_value_from_coordinator()
+        if data:
+            self._attr_native_value = data
         super()._handle_coordinator_update()
 
     def _get_value_from_coordinator(self) -> float | int | str | None:
