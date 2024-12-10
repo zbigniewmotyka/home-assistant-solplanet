@@ -63,6 +63,7 @@ class SolplanetSensorEntityDescription(SensorEntityDescription):
     data_field_device_type: str
     data_field_path: list[str | int]
     data_field_data_type: str
+    data_field_invalid_value: int | None = None
     data_field_value_multiply: float | None = None
     data_field_value_mapper: abc.Callable[[Any], Any] | None = None
     unique_id_suffix: str | None = None
@@ -132,7 +133,7 @@ class SolplanetSensor(CoordinatorEntity, SensorEntity):
             self.entity_description.data_field_invalid_value is not None
             and data == self.entity_description.data_field_invalid_value
         ):
-            _LOGGER.debug("Invalid value received from Inverter")
+            _LOGGER.info("Invalid value received from Inverter")
             return None
 
         if (
