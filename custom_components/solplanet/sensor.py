@@ -63,7 +63,7 @@ class SolplanetSensorEntityDescription(SensorEntityDescription):
     data_field_device_type: str
     data_field_path: list[str | int]
     data_field_data_type: str
-    data_field_invalid_value: int | None = None
+    data_field_NaN_value: int | None = None
     data_field_value_multiply: float | None = None
     data_field_value_mapper: abc.Callable[[Any], Any] | None = None
     unique_id_suffix: str | None = None
@@ -130,10 +130,10 @@ class SolplanetSensor(CoordinatorEntity, SensorEntity):
             data = self.entity_description.data_field_value_mapper(data)
 
         if (
-            self.entity_description.data_field_invalid_value is not None
-            and data == self.entity_description.data_field_invalid_value
+            self.entity_description.data_field_NaN_value is not None
+            and data == self.entity_description.data_field_NaN_value
         ):
-            _LOGGER.info("Invalid value received from Inverter")
+            _LOGGER.info("NaN value received from Inverter")
             return None
 
         if (
@@ -293,7 +293,7 @@ def create_inverter_entites_description(
             data_field_device_type=INVERTER_IDENTIFIER,
             data_field_data_type="data",
             data_field_path=["flg"],
-            data_field_invalid_value=0xFF,
+            data_field_NaN_value=0xFF,
             device_class=SensorDeviceClass.ENUM,
             data_field_value_mapper=_create_dict_mapper(INVERTER_STATUS),
         ),
@@ -312,7 +312,7 @@ def create_inverter_entites_description(
             data_field_device_type=INVERTER_IDENTIFIER,
             data_field_data_type="data",
             data_field_path=["fac"],
-            data_field_invalid_value=0xFFFF,
+            data_field_NaN_value=0xFFFF,
             data_field_value_multiply=0.01,
             native_unit_of_measurement=UnitOfFrequency.HERTZ,
             device_class=SensorDeviceClass.FREQUENCY,
@@ -324,7 +324,7 @@ def create_inverter_entites_description(
             data_field_device_type=INVERTER_IDENTIFIER,
             data_field_data_type="data",
             data_field_path=["pac"],
-            data_field_invalid_value=0xFFFFFFFF,
+            data_field_NaN_value=0xFFFFFFFF,
             native_unit_of_measurement=UnitOfPower.WATT,
             device_class=SensorDeviceClass.POWER,
             state_class=SensorStateClass.MEASUREMENT,
@@ -335,7 +335,7 @@ def create_inverter_entites_description(
             data_field_device_type=INVERTER_IDENTIFIER,
             data_field_data_type="data",
             data_field_path=["sac"],
-            data_field_invalid_value=0xFFFFFFFF,
+            data_field_NaN_value=0xFFFFFFFF,
             native_unit_of_measurement=UnitOfApparentPower.VOLT_AMPERE,
             device_class=SensorDeviceClass.APPARENT_POWER,
             state_class=SensorStateClass.MEASUREMENT,
@@ -346,7 +346,7 @@ def create_inverter_entites_description(
             data_field_device_type=INVERTER_IDENTIFIER,
             data_field_data_type="data",
             data_field_path=["qac"],
-            data_field_invalid_value=0x80000000,
+            data_field_NaN_value=0x80000000,
             native_unit_of_measurement=UnitOfReactivePower.VOLT_AMPERE_REACTIVE,
             device_class=SensorDeviceClass.REACTIVE_POWER,
             state_class=SensorStateClass.MEASUREMENT,
@@ -367,7 +367,7 @@ def create_inverter_entites_description(
             data_field_device_type=INVERTER_IDENTIFIER,
             data_field_data_type="data",
             data_field_path=["eto"],
-            data_field_invalid_value=0xFFFFFFFF,
+            data_field_NaN_value=0xFFFFFFFF,
             data_field_value_multiply=0.1,
             native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
             device_class=SensorDeviceClass.ENERGY,
@@ -379,7 +379,7 @@ def create_inverter_entites_description(
             data_field_device_type=INVERTER_IDENTIFIER,
             data_field_data_type="data",
             data_field_path=["etd"],
-            data_field_invalid_value=0xFFFFFFFF,
+            data_field_NaN_value=0xFFFFFFFF,
             data_field_value_multiply=0.1,
             native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
             device_class=SensorDeviceClass.ENERGY,
@@ -391,7 +391,7 @@ def create_inverter_entites_description(
             data_field_device_type=INVERTER_IDENTIFIER,
             data_field_data_type="data",
             data_field_path=["tmp"],
-            data_field_invalid_value=0x8000,
+            data_field_NaN_value=-32768,
             data_field_value_multiply=0.1,
             native_unit_of_measurement=UnitOfTemperature.CELSIUS,
             device_class=SensorDeviceClass.TEMPERATURE,
@@ -403,7 +403,7 @@ def create_inverter_entites_description(
             data_field_device_type=INVERTER_IDENTIFIER,
             data_field_data_type="data",
             data_field_path=["hto"],
-            data_field_invalid_value=0xFFFFFFFF,
+            data_field_NaN_value=0xFFFFFFFF,
             native_unit_of_measurement=UnitOfTime.HOURS,
             device_class=SensorDeviceClass.DURATION,
             state_class=SensorStateClass.TOTAL_INCREASING,
