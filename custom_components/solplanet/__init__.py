@@ -9,6 +9,7 @@ from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant
 import homeassistant.helpers.config_validation as cv
 import homeassistant.helpers.device_registry as dr
+from homeassistant.exceptions import ConfigEntryNotReady
 
 from .client import SolplanetApi, SolplanetClient
 from .const import (
@@ -89,6 +90,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
             manufacturer=meter_info.manufactory,
             model=meter_info.name,
         )
+
+    if len(coordinator.data[INVERTER_IDENTIFIER]) == 0:
+        raise ConfigEntryNotReady(f"No device detected, inverter in sleep mode")
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

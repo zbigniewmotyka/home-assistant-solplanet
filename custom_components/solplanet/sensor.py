@@ -4,6 +4,7 @@ from collections import abc
 from dataclasses import dataclass
 import re
 from typing import Any
+import logging
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -52,6 +53,8 @@ from .const import (
 )
 from .coordinator import SolplanetDataUpdateCoordinator
 
+_LOGGER = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True, kw_only=True)
 class SolplanetSensorEntityDescription(SensorEntityDescription):
@@ -97,14 +100,20 @@ class SolplanetSensor(CoordinatorEntity, SensorEntity):
         """Handle updated data from the coordinator."""
         # Set the native value here so we can use it in available property
         # without having to recalculate it
-        self._attr_native_value = self._get_value_from_coordinator()
+        data = self._get_value_from_coordinator()
+        if data:
+            self._attr_native_value = data
         super()._handle_coordinator_update()
 
     def _get_value_from_coordinator(self) -> float | int | str | None:
         """Return the state of the sensor."""
-        data = self.coordinator.data[self.entity_description.data_field_device_type][
-            self._isn
-        ][self.entity_description.data_field_data_type]
+        try:
+            data = self.coordinator.data[self.entity_description.data_field_device_type][
+                self._isn
+            ][self.entity_description.data_field_data_type]
+        except KeyError:
+            _LOGGER.debug("Component serial number not in data. This is normal if the inverter is sleeping.")
+            return None
 
         for path_item in self.entity_description.data_field_path:
             if isinstance(data, list) or hasattr(data, "__dict__"):
