@@ -117,7 +117,7 @@ class SolplanetSensor(CoordinatorEntity, SensorEntity):
             return None
 
         for path_item in self.entity_description.data_field_path:
-            if isinstance(data, list) or hasattr(data, "__dict__"):
+            if (isinstance(data, list) and len(data) > 0) or hasattr(data, "__dict__"):
                 data = (
                     data[int(path_item)]
                     if isinstance(data, list)
