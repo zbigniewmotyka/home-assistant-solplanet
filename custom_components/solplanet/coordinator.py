@@ -51,7 +51,7 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
             )
 
             meter = None
-            meter_sn = isns[0] if len(isns) > 1 else None
+            meter_sn = isns[0] if len(isns) > 0 else None
             try:
                 meter_data = await self.__api.get_meter_data()
                 meter_info = await self.__api.get_meter_info()
