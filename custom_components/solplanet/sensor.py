@@ -133,7 +133,7 @@ class SolplanetSensor(CoordinatorEntity, SensorEntity):
             self.entity_description.data_field_NaN_value is not None
             and data == self.entity_description.data_field_NaN_value
         ):
-            _LOGGER.info("NaN value received from Inverter")
+            _LOGGER.debug("NaN value received from Inverter")
             return None
 
         if (
