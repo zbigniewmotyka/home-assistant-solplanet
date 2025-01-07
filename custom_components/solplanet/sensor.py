@@ -941,7 +941,7 @@ def create_battery_entites_description(
                 state_class=SensorStateClass.MEASUREMENT,
             ),
         )
-        sensors.append(  # noqa: PERF401
+        sensors.append(
             SolplanetSensorEntityDescription(
                 key=f"{isn}_qac{i+1}esp",
                 name=f"EPS phase {i+1} reactive power",
