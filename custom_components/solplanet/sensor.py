@@ -2,9 +2,9 @@
 
 from collections import abc
 from dataclasses import dataclass
+import logging
 import re
 from typing import Any
-import logging
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -63,7 +63,7 @@ class SolplanetSensorEntityDescription(SensorEntityDescription):
     data_field_device_type: str
     data_field_path: list[str | int]
     data_field_data_type: str
-    data_field_NaN_value: int | None = None
+    data_field_NaN_value: int | None = None  # noqa: N815
     data_field_value_multiply: float | None = None
     data_field_value_mapper: abc.Callable[[Any], Any] | None = None
     unique_id_suffix: str | None = None
@@ -109,11 +109,13 @@ class SolplanetSensor(CoordinatorEntity, SensorEntity):
     def _get_value_from_coordinator(self) -> float | int | str | None:
         """Return the state of the sensor."""
         try:
-            data = self.coordinator.data[self.entity_description.data_field_device_type][
-                self._isn
-            ][self.entity_description.data_field_data_type]
+            data = self.coordinator.data[
+                self.entity_description.data_field_device_type
+            ][self._isn][self.entity_description.data_field_data_type]
         except KeyError:
-            _LOGGER.debug("Component serial number not in data. This is normal if the inverter is sleeping.")
+            _LOGGER.debug(
+                "Component serial number not in data. This is normal if the inverter is sleeping"
+            )
             return None
 
         for path_item in self.entity_description.data_field_path:
