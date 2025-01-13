@@ -52,6 +52,7 @@ from .const import (
     METER_IDENTIFIER,
 )
 from .coordinator import SolplanetDataUpdateCoordinator
+from .exceptions import InverterInSleepModeError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -94,17 +95,21 @@ class SolplanetSensor(CoordinatorEntity, SensorEntity):
             f"{isn}_{description.name}"
         )
         self._isn = isn
-        self._attr_native_value = self._get_value_from_coordinator()
+        self._set_native_value()
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        # Set the native value here so we can use it in available property
-        # without having to recalculate it
-        data = self._get_value_from_coordinator()
-        if data:
-            self._attr_native_value = data
+        self._set_native_value()
         super()._handle_coordinator_update()
+
+    def _set_native_value(self) -> None:
+        try:
+            self._attr_native_value = self._get_value_from_coordinator()
+        except InverterInSleepModeError:
+            _LOGGER.debug(
+                "Component serial number not in data - this is normal if the inverter is sleeping"
+            )
 
     def _get_value_from_coordinator(self) -> float | int | str | None:
         """Return the state of the sensor."""
@@ -113,10 +118,7 @@ class SolplanetSensor(CoordinatorEntity, SensorEntity):
                 self.entity_description.data_field_device_type
             ][self._isn][self.entity_description.data_field_data_type]
         except KeyError:
-            _LOGGER.debug(
-                "Component serial number not in data. This is normal if the inverter is sleeping"
-            )
-            return None
+            raise InverterInSleepModeError from None
 
         for path_item in self.entity_description.data_field_path:
             if (isinstance(data, list) and len(data) > 0) or hasattr(data, "__dict__"):
