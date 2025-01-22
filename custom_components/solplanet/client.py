@@ -1,5 +1,6 @@
 """Solplanet client for solplanet integration."""
 
+import base64
 from dataclasses import dataclass
 from inspect import signature
 import json
@@ -410,6 +411,12 @@ class SolplanetClient:
 
     async def _parse_response(self, response: ClientResponse):
         """Parse response from inverter endpoints."""
+        _LOGGER.debug(
+            "Received from %s:\nheaders: %s,\ncontent: %s",
+            response.request_info.url,
+            response.raw_headers,
+            base64.b64encode(await response.read()),
+        )
         return await response.json(
             content_type=None, loads=lambda d: json.loads(s=d, strict=False)
         )
