@@ -1,10 +1,10 @@
-# Solplanet Inverter Integration
+# Solplanet / Rahvolt Inverter Integration
 [![hacs_badge](https://img.shields.io/badge/HACS-Integration-41BDF5.svg)](https://github.com/hacs/integration)
 ![GitHub all releases](https://img.shields.io/badge/dynamic/json?color=41BDF5&logo=home-assistant&label=Download%20Count&suffix=%20installs&cacheSeconds=15600&url=https://analytics.home-assistant.io/custom_integrations.json&query=$.solplanet.total)
 [![GitHub Release](https://img.shields.io/github/release/zbigniewmotyka/home-assistant-solplanet.svg)](https://github.com/zbigniewmotyka/home-assistant-solplanet/releases/)
 
 ![Solplanet-Logo-Gradient](https://github.com/user-attachments/assets/9675dcad-d32d-4605-972c-b3e244eb1ee8) \
-The integration locally poll from Solplanet inverter and exposes Inverter, Battery and Smart meter information. \
+The integration locally poll from Solplanet inverter (and other with compatible inverters like Rahvolt) and exposes Inverter, Battery and Smart meter information. \
 This information can be used into Home Assistant Energy Dashboard.
 
 ## Features
