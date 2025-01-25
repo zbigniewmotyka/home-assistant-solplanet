@@ -94,3 +94,13 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
         """Set battery work mode."""
         await self.__api.set_battery_work_mode(sn, mode)
         await self.async_refresh()
+
+    async def set_battery_soc_min(self, sn: str, value: int) -> None:
+        """Set battery soc min."""
+        await self.__api.set_battery_soc_min(sn, value)
+        await self.async_refresh()
+
+    async def set_battery_soc_max(self, sn: str, value: int) -> None:
+        """Set battery soc max."""
+        await self.__api.set_battery_soc_max(sn, value)
+        await self.async_refresh()

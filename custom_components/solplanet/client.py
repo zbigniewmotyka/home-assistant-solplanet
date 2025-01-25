@@ -298,11 +298,11 @@ class GetBatteryInfoResponse:
 
     """
 
+    type: int
+    mod_r: int
     battery: GetBatteryInfoItemResponse | None = None
     isn: str | None = None
     stu_r: int | None = None
-    type: int | None = None
-    mod_r: int | None = None
     muf: int | None = None
     mod: int | None = None
     num: int | None = None
@@ -486,6 +486,38 @@ class SolplanetApi:
             num=current_config.num,
             sn=current_config.isn,
             charge_max=current_config.charge_max,
+            discharge_max=current_config.discharge_max,
+        )
+        request = SetBatteryConfigRequest(value=value)
+        await self.client.post("setting.cgi", request)
+
+    async def set_battery_soc_min(self, sn: str, soc_min: int) -> None:
+        """Set battery work mode."""
+        current_config = await self.get_battery_info(sn)
+        value = SetBatteryConfigValueRequest(
+            type=current_config.type,
+            mod_r=current_config.mod_r,
+            muf=current_config.muf,
+            mod=current_config.mod,
+            num=current_config.num,
+            sn=current_config.isn,
+            charge_max=current_config.charge_max,
+            discharge_max=soc_min,
+        )
+        request = SetBatteryConfigRequest(value=value)
+        await self.client.post("setting.cgi", request)
+
+    async def set_battery_soc_max(self, sn: str, soc_max: int) -> None:
+        """Set battery work mode."""
+        current_config = await self.get_battery_info(sn)
+        value = SetBatteryConfigValueRequest(
+            type=current_config.type,
+            mod_r=current_config.mod_r,
+            muf=current_config.muf,
+            mod=current_config.mod,
+            num=current_config.num,
+            sn=current_config.isn,
+            charge_max=soc_max,
             discharge_max=current_config.discharge_max,
         )
         request = SetBatteryConfigRequest(value=value)
