@@ -8,5 +8,5 @@
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/zbigniewmotyka/home-assistant-solplanet/issues",
   "requirements": [],
-  "version": "0.4.2"
+  "version": "0.4.3"
 }

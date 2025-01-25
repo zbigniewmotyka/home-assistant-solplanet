@@ -1,9 +1,13 @@
 """Solplanet client for solplanet integration."""
 
+import base64
 from dataclasses import dataclass
 from inspect import signature
+import json
 import logging
 from typing import Any
+
+from aiohttp import ClientResponse
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -349,7 +353,7 @@ class BatteryWorkModes:
         BatteryWorkMode("Reserve power mode", 3, 1),
         BatteryWorkMode("Custom mode", 4, 1),
         BatteryWorkMode("Off-grid mode", 1, 2),
-        BatteryWorkMode("Time of use mode", 5, 1),        
+        BatteryWorkMode("Time of use mode", 5, 1),
     ]
 
     def get_all_modes(self, type: int, mod_r: int) -> list[BatteryWorkMode]:
@@ -395,13 +399,28 @@ class SolplanetClient:
 
     async def get(self, endpoint: str):
         """Make get request to specified endpoint."""
-        response = await self.session.get(self.get_url(endpoint))
-        return await response.json(content_type=None)
+        return await self._parse_response(
+            await self.session.get(self.get_url(endpoint))
+        )
 
     async def post(self, endpoint: str, data: Any):
         """Make get request to specified endpoint."""
-        response = await self.session.post(self.get_url(endpoint), json=data)
-        return await response.json(content_type=None)
+        return await self._parse_response(
+            await self.session.post(self.get_url(endpoint), json=data)
+        )
+
+    async def _parse_response(self, response: ClientResponse):
+        """Parse response from inverter endpoints."""
+        content = await response.read()
+        _LOGGER.debug(
+            "Received from %s:\nheaders: %s,\ncontent: %s",
+            response.request_info.url,
+            response.raw_headers,
+            base64.b64encode(content),
+        )
+        return json.loads(
+            s=content.strip().decode(response.get_encoding(), "replace"), strict=False
+        )
 
 
 class SolplanetApi:
