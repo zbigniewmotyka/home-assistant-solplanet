@@ -107,7 +107,7 @@ class SolplanetSensor(CoordinatorEntity, SensorEntity):
         try:
             self._attr_native_value = self._get_value_from_coordinator()
         except InverterInSleepModeError:
-            _LOGGER.debug(
+            _LOGGER.warning(
                 "Component serial number not in data - this is normal if the inverter is sleeping"
             )
 
@@ -137,7 +137,7 @@ class SolplanetSensor(CoordinatorEntity, SensorEntity):
             self.entity_description.data_field_NaN_value is not None
             and data == self.entity_description.data_field_NaN_value
         ):
-            _LOGGER.debug("NaN value received from Inverter")
+            _LOGGER.warning("NaN value received from Inverter")
             return None
 
         if (

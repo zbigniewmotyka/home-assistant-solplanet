@@ -412,7 +412,7 @@ class SolplanetClient:
     async def _parse_response(self, response: ClientResponse):
         """Parse response from inverter endpoints."""
         content = await response.read()
-        _LOGGER.debug(
+        _LOGGER.warning(
             "Received from %s:\nheaders: %s,\ncontent: %s",
             response.request_info.url,
             response.raw_headers,
@@ -428,18 +428,18 @@ class SolplanetApi:
 
     def __init__(self, client: SolplanetClient) -> None:
         """Create instance of solplanet api."""
-        _LOGGER.debug("Creating api instance")
+        _LOGGER.warning("Creating api instance")
         self.client = client
 
     async def get_inverter_data(self, sn: str) -> GetInverterDataResponse:
         """Get inverter data."""
-        _LOGGER.debug("Getting inverter (%s) data", sn)
+        _LOGGER.warning("Getting inverter (%s) data", sn)
         response = await self.client.get("getdevdata.cgi?device=2&sn=" + sn)
         return self._create_class_from_dict(GetInverterDataResponse, response)
 
     async def get_inverter_info(self) -> GetInverterInfoResponse:
         """Get inverter info."""
-        _LOGGER.debug("Getting inverter info")
+        _LOGGER.warning("Getting inverter info")
         response = await self.client.get("getdev.cgi?device=2")
         response["inv"] = [
             self._create_class_from_dict(GetInverterInfoItemResponse, item)
@@ -449,25 +449,25 @@ class SolplanetApi:
 
     async def get_meter_data(self) -> GetMeterDataResponse:
         """Get meter data."""
-        _LOGGER.debug("Getting meter data")
+        _LOGGER.warning("Getting meter data")
         response = await self.client.get("getdevdata.cgi?device=3")
         return self._create_class_from_dict(GetMeterDataResponse, response)
 
     async def get_meter_info(self) -> GetMeterInfoResponse:
         """Get meter info."""
-        _LOGGER.debug("Getting meter info")
+        _LOGGER.warning("Getting meter info")
         response = await self.client.get("getdev.cgi?device=3")
         return self._create_class_from_dict(GetMeterInfoResponse, response)
 
     async def get_battery_data(self, sn: str) -> GetBatteryDataResponse:
         """Get battery data."""
-        _LOGGER.debug("Getting battery data")
+        _LOGGER.warning("Getting battery data")
         response = await self.client.get("getdevdata.cgi?device=4&sn=" + sn)
         return self._create_class_from_dict(GetBatteryDataResponse, response)
 
     async def get_battery_info(self, sn: str) -> GetBatteryInfoResponse:
         """Get battery info."""
-        _LOGGER.debug("Getting battery info")
+        _LOGGER.warning("Getting battery info")
         response = await self.client.get("getdev.cgi?device=4&sn=" + sn)
         if "battery" in response:
             response["battery"] = self._create_class_from_dict(

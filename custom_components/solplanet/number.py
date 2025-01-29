@@ -78,7 +78,7 @@ class SolplanetNumber(CoordinatorEntity, NumberEntity):
                 self.entity_description.data_field_device_type
             ][self._isn][self.entity_description.data_field_data_type]
         except KeyError:
-            _LOGGER.debug(
+            _LOGGER.warning(
                 "Component serial number not in data. This is normal if the inverter is sleeping"
             )
             return None
@@ -100,7 +100,7 @@ class SolplanetNumber(CoordinatorEntity, NumberEntity):
             self.entity_description.data_field_NaN_value is not None
             and data == self.entity_description.data_field_NaN_value
         ):
-            _LOGGER.debug("NaN value received from Inverter")
+            _LOGGER.warning("NaN value received from Inverter")
             return None
 
         if (

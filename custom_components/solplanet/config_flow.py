@@ -37,7 +37,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     try:
         await api.get_inverter_info()
     except Exception as err:
-        _LOGGER.debug("Exception occurred during adding device")
+        _LOGGER.warning("Exception occurred during adding device")
         raise CannotConnect from err
     else:
         return {

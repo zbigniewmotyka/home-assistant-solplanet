@@ -22,7 +22,7 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
         """Create instance of solplanet coordinator."""
         self.__api = api
 
-        _LOGGER.debug("Creating inverter coordinator")
+        _LOGGER.warning("Creating inverter coordinator")
 
         super().__init__(
             hass,
@@ -34,7 +34,7 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self):
         """Fetch data from REST API."""
         try:
-            _LOGGER.debug("Updating inverters data")
+            _LOGGER.warning("Updating inverters data")
             inverters_info = await self.__api.get_inverter_info()
 
             isns = [x.isn for x in inverters_info.inv]
@@ -60,9 +60,9 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
                 if meter_info.sn is not None:
                     meter_sn = meter_info.sn
             except Exception as err:  # noqa: BLE001
-                _LOGGER.debug(err, stack_info=True, exc_info=True)
+                _LOGGER.warning(err, stack_info=True, exc_info=True)
 
-            _LOGGER.debug("Inverters data updated")
+            _LOGGER.warning("Inverters data updated")
             return {
                 INVERTER_IDENTIFIER: {
                     isns[i]: {"data": inverters_data[i], "info": inverters_info.inv[i]}
@@ -87,7 +87,7 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
             }
 
         except Exception as err:
-            _LOGGER.debug(err, stack_info=True, exc_info=True)
+            _LOGGER.warning(err, stack_info=True, exc_info=True)
             raise UpdateFailed(f"Error fetching data from API: {err}") from err
 
     async def set_battery_work_mode(self, sn: str, mode: BatteryWorkMode) -> None:
