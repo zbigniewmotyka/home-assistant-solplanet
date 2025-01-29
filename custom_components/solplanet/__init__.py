@@ -8,6 +8,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import homeassistant.helpers.config_validation as cv
 import homeassistant.helpers.device_registry as dr
 
@@ -42,7 +43,7 @@ async def async_setup(hass: HomeAssistant, entry: SolplanetConfigEntry) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) -> bool:
     """Set up Solplanet from a config entry."""
 
-    client = SolplanetClient(entry.data[CONF_HOST], hass)
+    client = SolplanetClient(entry.data[CONF_HOST], async_get_clientsession(hass))
     api = SolplanetApi(client)
     entry.runtime_data = api
 

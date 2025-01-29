@@ -3,8 +3,6 @@
 from collections import abc
 from dataclasses import dataclass
 import logging
-import re
-from typing import Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -24,13 +22,8 @@ from homeassistant.const import (
     UnitOfTemperature,
     UnitOfTime,
 )
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import (
-    CoordinatorEntity,
-    DataUpdateCoordinator,
-)
 
 from . import INVERTER_IDENTIFIER, SolplanetConfigEntry
 from .client import GetInverterDataResponse
@@ -52,111 +45,23 @@ from .const import (
     METER_IDENTIFIER,
 )
 from .coordinator import SolplanetDataUpdateCoordinator
-from .exceptions import InverterInSleepModeError
+from .entity import SolplanetEntity, SolplanetEntityDescription
 
 _LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, kw_only=True)
-class SolplanetSensorEntityDescription(SensorEntityDescription):
+class SolplanetSensorEntityDescription(
+    SolplanetEntityDescription, SensorEntityDescription
+):
     """Describe Solplanet sensor entity."""
 
-    data_field_device_type: str
-    data_field_path: list[str | int]
-    data_field_data_type: str
-    data_field_NaN_value: int | None = None  # noqa: N815
-    data_field_value_multiply: float | None = None
-    data_field_value_mapper: abc.Callable[[Any], Any] | None = None
-    unique_id_suffix: str | None = None
 
-
-class SolplanetSensor(CoordinatorEntity, SensorEntity):
+class SolplanetSensor(SolplanetEntity, SensorEntity):
     """Representation of a Solplanet sensor."""
 
     entity_description: SolplanetSensorEntityDescription
-    unique_id_suffix: str
-    sanitized_entity_id: str
-
-    def __init__(
-        self,
-        description: SolplanetSensorEntityDescription,
-        isn: str,
-        coordinator: DataUpdateCoordinator,
-    ) -> None:
-        """Initialize the sensor."""
-        super().__init__(coordinator)
-        self.entity_description = description
-        self.unique_id_suffix = (
-            description.unique_id_suffix
-            if description.unique_id_suffix
-            else "_".join(str(x) for x in description.data_field_path)
-        )
-        self.sanitized_entity_id = self._sanitize_string_for_entity_id(
-            f"{isn}_{description.name}"
-        )
-        self._isn = isn
-        self._set_native_value()
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator."""
-        self._set_native_value()
-        super()._handle_coordinator_update()
-
-    def _set_native_value(self) -> None:
-        try:
-            self._attr_native_value = self._get_value_from_coordinator()
-        except InverterInSleepModeError:
-            _LOGGER.debug(
-                "Component serial number not in data - this is normal if the inverter is sleeping"
-            )
-
-    def _get_value_from_coordinator(self) -> float | int | str | None:
-        """Return the state of the sensor."""
-        try:
-            data = self.coordinator.data[
-                self.entity_description.data_field_device_type
-            ][self._isn][self.entity_description.data_field_data_type]
-        except KeyError:
-            raise InverterInSleepModeError from None
-
-        for path_item in self.entity_description.data_field_path:
-            if (isinstance(data, list) and len(data) > 0) or hasattr(data, "__dict__"):
-                data = (
-                    data[int(path_item)]
-                    if isinstance(data, list)
-                    else getattr(data, str(path_item))
-                )
-            else:
-                return None
-
-        if self.entity_description.data_field_value_mapper is not None:
-            data = self.entity_description.data_field_value_mapper(data)
-
-        if (
-            self.entity_description.data_field_NaN_value is not None
-            and data == self.entity_description.data_field_NaN_value
-        ):
-            _LOGGER.debug("NaN value received from Inverter")
-            return None
-
-        if (
-            data is not None
-            and self.entity_description.data_field_value_multiply is not None
-        ):
-            data = data * self.entity_description.data_field_value_multiply
-
-        return data
-
-    def _sanitize_string_for_entity_id(self, input_string: str) -> str:
-        sanitized_string = input_string.lower()
-        sanitized_string = re.sub(r"[^a-z0-9_]+", "_", sanitized_string)
-        sanitized_string = re.sub(r"_+", "_", sanitized_string)
-        return sanitized_string.strip("_")
-
-
-class SolplanetInverterSensor(SolplanetSensor):
-    """Representation of a Solplanet Inverter sensor."""
+    _attr_native_value: float | int | str | None
 
     def __init__(
         self,
@@ -165,71 +70,7 @@ class SolplanetInverterSensor(SolplanetSensor):
         coordinator: SolplanetDataUpdateCoordinator,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(description, isn, coordinator)
-
-        self.entity_id = f"sensor.solplanet_{self.sanitized_entity_id}"
-        self._attr_unique_id = f"solplanet_{isn}_{self.unique_id_suffix}"
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device information about this sensor."""
-        return {
-            "identifiers": {(DOMAIN, self._isn)},
-        }
-
-
-class SolplanetBatterySensor(SolplanetSensor):
-    """Representation of a Solplanet Battery sensor."""
-
-    def __init__(
-        self,
-        description: SolplanetSensorEntityDescription,
-        isn: str,
-        coordinator: SolplanetDataUpdateCoordinator,
-    ) -> None:
-        """Initialize the sensor."""
-        super().__init__(description, isn, coordinator)
-
-        self.entity_id = (
-            f"sensor.solplanet_{BATTERY_IDENTIFIER}_{self.sanitized_entity_id}"
-        )
-        self._attr_unique_id = (
-            f"solplanet_{BATTERY_IDENTIFIER}_{isn}_{self.unique_id_suffix}"
-        )
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device information about this sensor."""
-        return {
-            "identifiers": {(DOMAIN, f"{BATTERY_IDENTIFIER}_{self._isn}")},
-        }
-
-
-class SolplanetMeterSensor(SolplanetSensor):
-    """Representation of a Solplanet Meter sensor."""
-
-    def __init__(
-        self,
-        description: SolplanetSensorEntityDescription,
-        isn: str,
-        coordinator: SolplanetDataUpdateCoordinator,
-    ) -> None:
-        """Initialize the sensor."""
-        super().__init__(description, isn, coordinator)
-
-        self.entity_id = (
-            f"sensor.solplanet_{METER_IDENTIFIER}_{self.sanitized_entity_id}"
-        )
-        self._attr_unique_id = (
-            f"solplanet_{METER_IDENTIFIER}_{isn}_{self.unique_id_suffix}"
-        )
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device information about this sensor."""
-        return {
-            "identifiers": {(DOMAIN, f"{METER_IDENTIFIER}_{self._isn or ""}")},
-        }
+        super().__init__(description=description, isn=isn, coordinator=coordinator)
 
 
 def _create_mppt_power_mapper(index: int) -> abc.Callable:
@@ -971,7 +812,7 @@ async def async_setup_entry(
 
     for isn in coordinator.data[INVERTER_IDENTIFIER]:
         async_add_entities(
-            SolplanetInverterSensor(
+            SolplanetSensor(
                 description=entity_description,
                 isn=isn,
                 coordinator=coordinator,
@@ -983,7 +824,7 @@ async def async_setup_entry(
 
     for isn in coordinator.data[BATTERY_IDENTIFIER]:
         async_add_entities(
-            SolplanetBatterySensor(
+            SolplanetSensor(
                 description=entity_description,
                 isn=isn,
                 coordinator=coordinator,
@@ -995,7 +836,7 @@ async def async_setup_entry(
 
     for isn in coordinator.data[METER_IDENTIFIER]:
         async_add_entities(
-            SolplanetMeterSensor(
+            SolplanetSensor(
                 description=entity_description,
                 isn=isn,
                 coordinator=coordinator,
