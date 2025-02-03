@@ -126,6 +126,13 @@ class SolplanetEntity(CoordinatorEntity, Entity):
         sanitized_string = re.sub(r"_+", "_", sanitized_string)
         return sanitized_string.strip("_")
 
+    def has_value_in_response(self) -> bool:
+        """Return if sensor has value in response."""
+        try:
+            return self._get_value_from_coordinator() is not None
+        except InverterInSleepModeError:
+            return False
+
     @property
     def device_info(self) -> DeviceInfo:
         """Return device information about this sensor."""

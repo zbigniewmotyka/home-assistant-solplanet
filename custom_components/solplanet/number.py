@@ -88,8 +88,10 @@ async def async_setup_entry(
     """Set up number for Solplanet Inverter from a config entry."""
     coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
 
+    sensors: list[SolplanetNumber] = []
+
     for isn in coordinator.data[BATTERY_IDENTIFIER]:
-        async_add_entities(
+        sensors.extend(
             SolplanetNumber(
                 description=entity_description,
                 isn=isn,
@@ -99,3 +101,5 @@ async def async_setup_entry(
                 coordinator, isn
             )
         )
+
+    async_add_entities([sensor for sensor in sensors if sensor.has_value_in_response()])
