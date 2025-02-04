@@ -93,13 +93,21 @@ class SolplanetEntity(CoordinatorEntity, Entity):
             raise InverterInSleepModeError from None
 
         for path_item in self.entity_description.data_field_path:
-            if (isinstance(data, list) and len(data) > 0) or hasattr(data, "__dict__"):
+            if (
+                (isinstance(data, list) and len(data) > 0)
+                or hasattr(data, "__dict__")
+                or isinstance(data, dict)
+            ):
                 data = (
                     data[int(path_item)]
                     if isinstance(data, list)
                     else getattr(data, str(path_item))
+                    if hasattr(data, "__dict__")
+                    else data.get(path_item)
                 )
             else:
+                if self.entity_description.data_field_path[0] == "selected":
+                    _LOGGER.warning("Selected: %r", type(data))
                 return None
 
         if self.entity_description.data_field_value_mapper is not None:
