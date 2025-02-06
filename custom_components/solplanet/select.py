@@ -59,20 +59,21 @@ class SolplanetSelect(SolplanetEntity, SelectEntity):
         super()._handle_coordinator_update()
         self._refresh_options()
 
+    def _set_native_value(self) -> None:
+        super()._set_native_value()
+        self._attr_current_option = self._attr_native_value
+
     async def async_select_option(self, option: str) -> None:
         """Handle the option selection."""
         item = next((x for x in self._select_options if x.label == option), None)
 
         if item is not None:
             await self.entity_description.callback(item)
-            self._attr_current_option = option
-            self.async_write_ha_state()
+            await self.coordinator.async_request_refresh()
 
     def _refresh_options(self) -> None:
         self._select_options = self.entity_description.get_options()
-
         self._attr_options = [x.label for x in self._select_options]
-        self._attr_current_option = self._attr_native_value
 
 
 def create_battery_entites_description(
