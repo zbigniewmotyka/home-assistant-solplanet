@@ -7,10 +7,7 @@ import json
 import logging
 from typing import Any
 
-from aiohttp import ClientResponse
-
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from aiohttp import ClientResponse, ClientSession
 
 __author__ = "Zbigniew Motyka"
 __copyright__ = "Zbigniew Motyka"
@@ -387,11 +384,11 @@ class BatteryWorkModes:
 class SolplanetClient:
     """Solplanet http client."""
 
-    def __init__(self, host: str, hass: HomeAssistant) -> None:
+    def __init__(self, host: str, session: ClientSession) -> None:
         """Create instance of solplanet http client."""
         self.host = host
         self.port = 8484
-        self.session = async_get_clientsession(hass)
+        self.session = session
 
     def get_url(self, endpoint: str) -> str:
         """Get URL for specified endpoint."""

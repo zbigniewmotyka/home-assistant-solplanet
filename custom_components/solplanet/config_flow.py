@@ -11,6 +11,7 @@ from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .client import SolplanetApi, SolplanetClient
 from .const import CONF_INTERVAL, DEFAULT_INTERVAL, DOMAIN
@@ -31,13 +32,13 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
     """
 
-    client = SolplanetClient(data[CONF_HOST], hass)
+    client = SolplanetClient(data[CONF_HOST], async_get_clientsession(hass))
     api = SolplanetApi(client)
 
     try:
         await api.get_inverter_info()
     except Exception as err:
-        _LOGGER.debug("Exception occurred during adding device")
+        _LOGGER.debug("Exception occurred during adding device", exc_info=err)
         raise CannotConnect from err
     else:
         return {

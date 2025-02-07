@@ -3,8 +3,6 @@
 from collections import abc
 from dataclasses import dataclass
 import logging
-import re
-from typing import Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -24,13 +22,8 @@ from homeassistant.const import (
     UnitOfTemperature,
     UnitOfTime,
 )
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import (
-    CoordinatorEntity,
-    DataUpdateCoordinator,
-)
 
 from . import INVERTER_IDENTIFIER, SolplanetConfigEntry
 from .client import GetInverterDataResponse
@@ -52,111 +45,23 @@ from .const import (
     METER_IDENTIFIER,
 )
 from .coordinator import SolplanetDataUpdateCoordinator
-from .exceptions import InverterInSleepModeError
+from .entity import SolplanetEntity, SolplanetEntityDescription
 
 _LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, kw_only=True)
-class SolplanetSensorEntityDescription(SensorEntityDescription):
+class SolplanetSensorEntityDescription(
+    SolplanetEntityDescription, SensorEntityDescription
+):
     """Describe Solplanet sensor entity."""
 
-    data_field_device_type: str
-    data_field_path: list[str | int]
-    data_field_data_type: str
-    data_field_NaN_value: int | None = None  # noqa: N815
-    data_field_value_multiply: float | None = None
-    data_field_value_mapper: abc.Callable[[Any], Any] | None = None
-    unique_id_suffix: str | None = None
 
-
-class SolplanetSensor(CoordinatorEntity, SensorEntity):
+class SolplanetSensor(SolplanetEntity, SensorEntity):
     """Representation of a Solplanet sensor."""
 
     entity_description: SolplanetSensorEntityDescription
-    unique_id_suffix: str
-    sanitized_entity_id: str
-
-    def __init__(
-        self,
-        description: SolplanetSensorEntityDescription,
-        isn: str,
-        coordinator: DataUpdateCoordinator,
-    ) -> None:
-        """Initialize the sensor."""
-        super().__init__(coordinator)
-        self.entity_description = description
-        self.unique_id_suffix = (
-            description.unique_id_suffix
-            if description.unique_id_suffix
-            else "_".join(str(x) for x in description.data_field_path)
-        )
-        self.sanitized_entity_id = self._sanitize_string_for_entity_id(
-            f"{isn}_{description.name}"
-        )
-        self._isn = isn
-        self._set_native_value()
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator."""
-        self._set_native_value()
-        super()._handle_coordinator_update()
-
-    def _set_native_value(self) -> None:
-        try:
-            self._attr_native_value = self._get_value_from_coordinator()
-        except InverterInSleepModeError:
-            _LOGGER.debug(
-                "Component serial number not in data - this is normal if the inverter is sleeping"
-            )
-
-    def _get_value_from_coordinator(self) -> float | int | str | None:
-        """Return the state of the sensor."""
-        try:
-            data = self.coordinator.data[
-                self.entity_description.data_field_device_type
-            ][self._isn][self.entity_description.data_field_data_type]
-        except KeyError:
-            raise InverterInSleepModeError from None
-
-        for path_item in self.entity_description.data_field_path:
-            if (isinstance(data, list) and len(data) > 0) or hasattr(data, "__dict__"):
-                data = (
-                    data[int(path_item)]
-                    if isinstance(data, list)
-                    else getattr(data, str(path_item))
-                )
-            else:
-                return None
-
-        if self.entity_description.data_field_value_mapper is not None:
-            data = self.entity_description.data_field_value_mapper(data)
-
-        if (
-            self.entity_description.data_field_NaN_value is not None
-            and data == self.entity_description.data_field_NaN_value
-        ):
-            _LOGGER.debug("NaN value received from Inverter")
-            return None
-
-        if (
-            data is not None
-            and self.entity_description.data_field_value_multiply is not None
-        ):
-            data = data * self.entity_description.data_field_value_multiply
-
-        return data
-
-    def _sanitize_string_for_entity_id(self, input_string: str) -> str:
-        sanitized_string = input_string.lower()
-        sanitized_string = re.sub(r"[^a-z0-9_]+", "_", sanitized_string)
-        sanitized_string = re.sub(r"_+", "_", sanitized_string)
-        return sanitized_string.strip("_")
-
-
-class SolplanetInverterSensor(SolplanetSensor):
-    """Representation of a Solplanet Inverter sensor."""
+    _attr_native_value: float | int | str | None
 
     def __init__(
         self,
@@ -165,71 +70,7 @@ class SolplanetInverterSensor(SolplanetSensor):
         coordinator: SolplanetDataUpdateCoordinator,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(description, isn, coordinator)
-
-        self.entity_id = f"sensor.solplanet_{self.sanitized_entity_id}"
-        self._attr_unique_id = f"solplanet_{isn}_{self.unique_id_suffix}"
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device information about this sensor."""
-        return {
-            "identifiers": {(DOMAIN, self._isn)},
-        }
-
-
-class SolplanetBatterySensor(SolplanetSensor):
-    """Representation of a Solplanet Battery sensor."""
-
-    def __init__(
-        self,
-        description: SolplanetSensorEntityDescription,
-        isn: str,
-        coordinator: SolplanetDataUpdateCoordinator,
-    ) -> None:
-        """Initialize the sensor."""
-        super().__init__(description, isn, coordinator)
-
-        self.entity_id = (
-            f"sensor.solplanet_{BATTERY_IDENTIFIER}_{self.sanitized_entity_id}"
-        )
-        self._attr_unique_id = (
-            f"solplanet_{BATTERY_IDENTIFIER}_{isn}_{self.unique_id_suffix}"
-        )
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device information about this sensor."""
-        return {
-            "identifiers": {(DOMAIN, f"{BATTERY_IDENTIFIER}_{self._isn}")},
-        }
-
-
-class SolplanetMeterSensor(SolplanetSensor):
-    """Representation of a Solplanet Meter sensor."""
-
-    def __init__(
-        self,
-        description: SolplanetSensorEntityDescription,
-        isn: str,
-        coordinator: SolplanetDataUpdateCoordinator,
-    ) -> None:
-        """Initialize the sensor."""
-        super().__init__(description, isn, coordinator)
-
-        self.entity_id = (
-            f"sensor.solplanet_{METER_IDENTIFIER}_{self.sanitized_entity_id}"
-        )
-        self._attr_unique_id = (
-            f"solplanet_{METER_IDENTIFIER}_{isn}_{self.unique_id_suffix}"
-        )
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device information about this sensor."""
-        return {
-            "identifiers": {(DOMAIN, f"{METER_IDENTIFIER}_{self._isn or ""}")},
-        }
+        super().__init__(description=description, isn=isn, coordinator=coordinator)
 
 
 def _create_mppt_power_mapper(index: int) -> abc.Callable:
@@ -415,108 +256,100 @@ def create_inverter_entites_description(
     ]
 
     for i in range(3):
-        sensors.append(  # noqa: PERF401
-            SolplanetSensorEntityDescription(
-                key=f"{isn}_pac{i+1}",
-                name=f"AC phase {i+1} power",
-                data_field_device_type=INVERTER_IDENTIFIER,
-                data_field_data_type="data",
-                data_field_path=[f"pac{i+1}"],
-                native_unit_of_measurement=UnitOfPower.WATT,
-                device_class=SensorDeviceClass.POWER,
-                state_class=SensorStateClass.MEASUREMENT,
-            ),
-        )
-        sensors.append(  # noqa: PERF401
-            SolplanetSensorEntityDescription(
-                key=f"{isn}_qac{i+1}",
-                name=f"AC phase {i+1} reactive power",
-                data_field_device_type=INVERTER_IDENTIFIER,
-                data_field_data_type="data",
-                data_field_path=[f"qac{i+1}"],
-                native_unit_of_measurement=UnitOfReactivePower.VOLT_AMPERE_REACTIVE,
-                device_class=SensorDeviceClass.REACTIVE_POWER,
-                state_class=SensorStateClass.MEASUREMENT,
-            ),
+        sensors.extend(
+            [
+                SolplanetSensorEntityDescription(
+                    key=f"{isn}_pac{i+1}",
+                    name=f"AC phase {i+1} power",
+                    data_field_device_type=INVERTER_IDENTIFIER,
+                    data_field_data_type="data",
+                    data_field_path=[f"pac{i+1}"],
+                    native_unit_of_measurement=UnitOfPower.WATT,
+                    device_class=SensorDeviceClass.POWER,
+                    state_class=SensorStateClass.MEASUREMENT,
+                ),
+                SolplanetSensorEntityDescription(
+                    key=f"{isn}_qac{i+1}",
+                    name=f"AC phase {i+1} reactive power",
+                    data_field_device_type=INVERTER_IDENTIFIER,
+                    data_field_data_type="data",
+                    data_field_path=[f"qac{i+1}"],
+                    native_unit_of_measurement=UnitOfReactivePower.VOLT_AMPERE_REACTIVE,
+                    device_class=SensorDeviceClass.REACTIVE_POWER,
+                    state_class=SensorStateClass.MEASUREMENT,
+                ),
+            ]
         )
 
     data: GetInverterDataResponse = coordinator.data[INVERTER_IDENTIFIER][isn]["data"]
 
     for i in range(len(data.vac or [])):
-        sensors.append(  # noqa: PERF401
-            SolplanetSensorEntityDescription(
-                key=f"{isn}_vac_{i}",
-                name=f"AC phase {i + 1!s} voltage",
-                data_field_device_type=INVERTER_IDENTIFIER,
-                data_field_data_type="data",
-                data_field_path=["vac", i],
-                data_field_value_multiply=0.1,
-                native_unit_of_measurement=UnitOfElectricPotential.VOLT,
-                device_class=SensorDeviceClass.VOLTAGE,
-                state_class=SensorStateClass.MEASUREMENT,
-            ),
-        )
-
-    for i in range(len(data.iac or [])):
-        sensors.append(  # noqa: PERF401
-            SolplanetSensorEntityDescription(
-                key=f"{isn}_iac_{i}",
-                name=f"AC phase {i + 1!s} current",
-                data_field_device_type=INVERTER_IDENTIFIER,
-                data_field_data_type="data",
-                data_field_path=["iac", i],
-                data_field_value_multiply=0.1,
-                native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
-                device_class=SensorDeviceClass.CURRENT,
-                state_class=SensorStateClass.MEASUREMENT,
-            ),
+        sensors.extend(
+            [
+                SolplanetSensorEntityDescription(
+                    key=f"{isn}_vac_{i}",
+                    name=f"AC phase {i + 1!s} voltage",
+                    data_field_device_type=INVERTER_IDENTIFIER,
+                    data_field_data_type="data",
+                    data_field_path=["vac", i],
+                    data_field_value_multiply=0.1,
+                    native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+                    device_class=SensorDeviceClass.VOLTAGE,
+                    state_class=SensorStateClass.MEASUREMENT,
+                ),
+                SolplanetSensorEntityDescription(
+                    key=f"{isn}_iac_{i}",
+                    name=f"AC phase {i + 1!s} current",
+                    data_field_device_type=INVERTER_IDENTIFIER,
+                    data_field_data_type="data",
+                    data_field_path=["iac", i],
+                    data_field_value_multiply=0.1,
+                    native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+                    device_class=SensorDeviceClass.CURRENT,
+                    state_class=SensorStateClass.MEASUREMENT,
+                ),
+            ]
         )
 
     for i in range(len(data.vpv or [])):
-        sensors.append(  # noqa: PERF401
-            SolplanetSensorEntityDescription(
-                key=f"{isn}_vpv_{i}",
-                name=f"MPPT {i + 1!s} voltage",
-                data_field_device_type=INVERTER_IDENTIFIER,
-                data_field_data_type="data",
-                data_field_path=["vpv", i],
-                data_field_value_multiply=0.1,
-                native_unit_of_measurement=UnitOfElectricPotential.VOLT,
-                device_class=SensorDeviceClass.VOLTAGE,
-                state_class=SensorStateClass.MEASUREMENT,
-            ),
-        )
-
-    for i in range(len(data.ipv or [])):
-        sensors.append(  # noqa: PERF401
-            SolplanetSensorEntityDescription(
-                key=f"{isn}_ipv_{i}",
-                name=f"MPPT {i + 1!s} current",
-                data_field_device_type=INVERTER_IDENTIFIER,
-                data_field_data_type="data",
-                data_field_path=["ipv", i],
-                data_field_value_multiply=0.01,
-                native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
-                device_class=SensorDeviceClass.CURRENT,
-                state_class=SensorStateClass.MEASUREMENT,
-            ),
-        )
-
-    for i in range(len(data.ipv or [])):
-        sensors.append(  # noqa: PERF401
-            SolplanetSensorEntityDescription(
-                key=f"{isn}_mppt_power_{i}",
-                name=f"MPPT {i + 1!s} power",
-                data_field_device_type=INVERTER_IDENTIFIER,
-                data_field_data_type="data",
-                data_field_path=[],
-                data_field_value_mapper=_create_mppt_power_mapper(i),
-                data_field_value_multiply=0.001,
-                unique_id_suffix=f"mppt_{i}_power",
-                native_unit_of_measurement=UnitOfPower.WATT,
-                device_class=SensorDeviceClass.POWER,
-                state_class=SensorStateClass.MEASUREMENT,
-            ),
+        sensors.extend(
+            [
+                SolplanetSensorEntityDescription(
+                    key=f"{isn}_vpv_{i}",
+                    name=f"MPPT {i + 1!s} voltage",
+                    data_field_device_type=INVERTER_IDENTIFIER,
+                    data_field_data_type="data",
+                    data_field_path=["vpv", i],
+                    data_field_value_multiply=0.1,
+                    native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+                    device_class=SensorDeviceClass.VOLTAGE,
+                    state_class=SensorStateClass.MEASUREMENT,
+                ),
+                SolplanetSensorEntityDescription(
+                    key=f"{isn}_ipv_{i}",
+                    name=f"MPPT {i + 1!s} current",
+                    data_field_device_type=INVERTER_IDENTIFIER,
+                    data_field_data_type="data",
+                    data_field_path=["ipv", i],
+                    data_field_value_multiply=0.01,
+                    native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+                    device_class=SensorDeviceClass.CURRENT,
+                    state_class=SensorStateClass.MEASUREMENT,
+                ),
+                SolplanetSensorEntityDescription(
+                    key=f"{isn}_mppt_power_{i}",
+                    name=f"MPPT {i + 1!s} power",
+                    data_field_device_type=INVERTER_IDENTIFIER,
+                    data_field_data_type="data",
+                    data_field_path=[],
+                    data_field_value_mapper=_create_mppt_power_mapper(i),
+                    data_field_value_multiply=0.001,
+                    unique_id_suffix=f"mppt_{i}_power",
+                    native_unit_of_measurement=UnitOfPower.WATT,
+                    device_class=SensorDeviceClass.POWER,
+                    state_class=SensorStateClass.MEASUREMENT,
+                ),
+            ]
         )
 
     return sensors
@@ -905,55 +738,51 @@ def create_battery_entites_description(
     ]
 
     for i in range(3):
-        sensors.append(  # noqa: PERF401
-            SolplanetSensorEntityDescription(
-                key=f"{isn}_vl{i+1}esp",
-                name=f"EPS phase {i+1} current",
-                data_field_device_type=BATTERY_IDENTIFIER,
-                data_field_data_type="data",
-                data_field_path=[f"vl{i+1}esp"],
-                data_field_value_multiply=0.1,
-                native_unit_of_measurement=UnitOfElectricPotential.VOLT,
-                device_class=SensorDeviceClass.VOLTAGE,
-                state_class=SensorStateClass.MEASUREMENT,
-            ),
-        )
-        sensors.append(  # noqa: PERF401
-            SolplanetSensorEntityDescription(
-                key=f"{isn}_il{i+1}esp",
-                name=f"EPS phase {i+1} voltage",
-                data_field_device_type=BATTERY_IDENTIFIER,
-                data_field_data_type="data",
-                data_field_path=[f"il{i+1}esp"],
-                data_field_value_multiply=0.1,
-                native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
-                device_class=SensorDeviceClass.CURRENT,
-                state_class=SensorStateClass.MEASUREMENT,
-            ),
-        )
-        sensors.append(  # noqa: PERF401
-            SolplanetSensorEntityDescription(
-                key=f"{isn}_pac{i+1}esp",
-                name=f"EPS phase {i+1} power",
-                data_field_device_type=BATTERY_IDENTIFIER,
-                data_field_data_type="data",
-                data_field_path=[f"pac{i+1}esp"],
-                native_unit_of_measurement=UnitOfPower.WATT,
-                device_class=SensorDeviceClass.POWER,
-                state_class=SensorStateClass.MEASUREMENT,
-            ),
-        )
-        sensors.append(  # noqa: PERF401
-            SolplanetSensorEntityDescription(
-                key=f"{isn}_qac{i+1}esp",
-                name=f"EPS phase {i+1} reactive power",
-                data_field_device_type=BATTERY_IDENTIFIER,
-                data_field_data_type="data",
-                data_field_path=[f"qac{i+1}esp"],
-                native_unit_of_measurement=UnitOfReactivePower.VOLT_AMPERE_REACTIVE,
-                device_class=SensorDeviceClass.REACTIVE_POWER,
-                state_class=SensorStateClass.MEASUREMENT,
-            ),
+        sensors.extend(
+            [
+                SolplanetSensorEntityDescription(
+                    key=f"{isn}_vl{i+1}esp",
+                    name=f"EPS phase {i+1} current",
+                    data_field_device_type=BATTERY_IDENTIFIER,
+                    data_field_data_type="data",
+                    data_field_path=[f"vl{i+1}esp"],
+                    data_field_value_multiply=0.1,
+                    native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+                    device_class=SensorDeviceClass.VOLTAGE,
+                    state_class=SensorStateClass.MEASUREMENT,
+                ),
+                SolplanetSensorEntityDescription(
+                    key=f"{isn}_il{i+1}esp",
+                    name=f"EPS phase {i+1} voltage",
+                    data_field_device_type=BATTERY_IDENTIFIER,
+                    data_field_data_type="data",
+                    data_field_path=[f"il{i+1}esp"],
+                    data_field_value_multiply=0.1,
+                    native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+                    device_class=SensorDeviceClass.CURRENT,
+                    state_class=SensorStateClass.MEASUREMENT,
+                ),
+                SolplanetSensorEntityDescription(
+                    key=f"{isn}_pac{i+1}esp",
+                    name=f"EPS phase {i+1} power",
+                    data_field_device_type=BATTERY_IDENTIFIER,
+                    data_field_data_type="data",
+                    data_field_path=[f"pac{i+1}esp"],
+                    native_unit_of_measurement=UnitOfPower.WATT,
+                    device_class=SensorDeviceClass.POWER,
+                    state_class=SensorStateClass.MEASUREMENT,
+                ),
+                SolplanetSensorEntityDescription(
+                    key=f"{isn}_qac{i+1}esp",
+                    name=f"EPS phase {i+1} reactive power",
+                    data_field_device_type=BATTERY_IDENTIFIER,
+                    data_field_data_type="data",
+                    data_field_path=[f"qac{i+1}esp"],
+                    native_unit_of_measurement=UnitOfReactivePower.VOLT_AMPERE_REACTIVE,
+                    device_class=SensorDeviceClass.REACTIVE_POWER,
+                    state_class=SensorStateClass.MEASUREMENT,
+                ),
+            ]
         )
 
     return sensors
@@ -969,9 +798,11 @@ async def async_setup_entry(
         "coordinator"
     ]
 
+    sensors: list[SolplanetSensor] = []
+
     for isn in coordinator.data[INVERTER_IDENTIFIER]:
-        async_add_entities(
-            SolplanetInverterSensor(
+        sensors.extend(
+            SolplanetSensor(
                 description=entity_description,
                 isn=isn,
                 coordinator=coordinator,
@@ -982,8 +813,8 @@ async def async_setup_entry(
         )
 
     for isn in coordinator.data[BATTERY_IDENTIFIER]:
-        async_add_entities(
-            SolplanetBatterySensor(
+        sensors.extend(
+            SolplanetSensor(
                 description=entity_description,
                 isn=isn,
                 coordinator=coordinator,
@@ -994,11 +825,13 @@ async def async_setup_entry(
         )
 
     for isn in coordinator.data[METER_IDENTIFIER]:
-        async_add_entities(
-            SolplanetMeterSensor(
+        sensors.extend(
+            SolplanetSensor(
                 description=entity_description,
                 isn=isn,
                 coordinator=coordinator,
             )
             for entity_description in create_meter_entites_description(coordinator, isn)
         )
+
+    async_add_entities([sensor for sensor in sensors if sensor.has_value_in_response()])
