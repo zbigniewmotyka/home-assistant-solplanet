@@ -5,9 +5,12 @@ from dataclasses import dataclass
 from inspect import signature
 import json
 import logging
+import time
 from typing import Any
 
 from aiohttp import ClientResponse, ClientSession
+
+from .modbus import DataType, ModbusRtuFrameGenerator
 
 __author__ = "Zbigniew Motyka"
 __copyright__ = "Zbigniew Motyka"
@@ -20,44 +23,32 @@ _LOGGER = logging.getLogger(__name__)
 class GetInverterDataResponse:
     """Get inverter data response model.
 
-    Attributes
-    ----------
-    flg : int
-        TBD ??
-    tim : str
-        Datetime in format YYYYMMDDHHMMSS
-    tmp : int
-        Inverter temperature [C]
-    fac : int
-        AC frequency [Hz]
-    pac : int
-        AC real power [W]
-    sac : int
-        AC apparent power [VA]
-    qac : int
-        AC reactive / complex power [VAR]
-    eto : int
-        Energy produced total [kWh]
-    etd : int
-        Energy produced today [kWh]
-    hto : int
-        Total running time [h]
-    pf : int
-        Power factor
-    wan : int
-        TBD ??
-    err : int
-        Error
-    vac : list[int]
-        AC voltages [V]
-    iac : list[int]
-        AC current [A]
-    vpv : list[int]
-        DC voltages [V]
-    ipv : list[int]
-        DC current [A]
-    str : list[int]
-        TBD ??
+    Attributes:
+        flg: Inverter status code
+        tim: Timestamp of data
+        tmp: Inverter temperature in 0.1°C
+        fac: AC frequency in 0.01 Hz
+        pac: Total active power output in W
+        sac: Total apparent power in VA
+        qac: Total reactive power in VAr
+        eto: Total energy production in 0.1 kWh # codespell:ignore eto
+        etd: Today's energy production in 0.1 kWh
+        hto: Total working hours in h
+        pf: Power factor in 0.01
+        wan: Warning code
+        err: Error code
+        vac: AC phase voltages in 0.1 V
+        iac: AC phase currents in 0.1 A
+        vpv: PV input voltages per MPPT in 0.1 V
+        ipv: PV input currents per MPPT in 0.01 A
+        str: String values
+        stu: Status value
+        pac1: Phase 1 active power in W
+        qac1: Phase 1 reactive power in VAr
+        pac2: Phase 2 active power in W
+        qac2: Phase 2 reactive power in VAr
+        pac3: Phase 3 active power in W
+        qac3: Phase 3 reactive power in VAr
 
     """
 
@@ -68,7 +59,7 @@ class GetInverterDataResponse:
     pac: int | None = None
     sac: int | None = None
     qac: int | None = None
-    eto: int | None = None
+    eto: int | None = None  # codespell:ignore eto
     etd: int | None = None
     hto: int | None = None
     pf: int | None = None
@@ -90,7 +81,25 @@ class GetInverterDataResponse:
 
 @dataclass
 class GetInverterInfoItemResponse:
-    """Get inverter info item response."""
+    """Get inverter info item response.
+
+    Attributes:
+        isn: Inverter serial number
+        add: Address value
+        safety: Safety code
+        rate: Rate value
+        msw: Main software version
+        ssw: Slave software version
+        tsw: Third software version
+        pac: Current power output in W
+        etd: Today's energy production in 0.1 kWh
+        eto: Total energy production in 0.1 kWh # codespell:ignore eto
+        err: Error code
+        cmv: Communication version
+        mty: Device model type code
+        model: Device model name
+
+    """
 
     isn: str | None = None
     add: int | None = None
@@ -101,7 +110,7 @@ class GetInverterInfoItemResponse:
     tsw: str | None = None
     pac: int | None = None
     etd: int | None = None
-    eto: int | None = None
+    eto: int | None = None  # codespell:ignore eto
     err: int | None = None
     cmv: str | None = None
     mty: int | None = None
@@ -116,7 +125,13 @@ class GetInverterInfoItemResponse:
 
 @dataclass
 class GetInverterInfoResponse:
-    """Get inverter info response."""
+    """Get inverter info response.
+
+    Attributes:
+        inv: List of inverter info items
+        num: Number of inverters
+
+    """
 
     inv: list[GetInverterInfoItemResponse]
     num: int | None = None
@@ -126,26 +141,16 @@ class GetInverterInfoResponse:
 class GetMeterDataResponse:
     """Get meter data response model.
 
-    Attributes
-    ----------
-    flg : int
-        TBD ??
-    tim : str
-        Datetime in format YYYYMMDDHHMMSS
-    pac : int
-        AC real power [W]
-    itd : int
-        Input today
-    otd : int
-        Output today
-    iet : int
-        Input total
-    oet : int
-        Output total
-    mod : int
-        TBD ??
-    enb : int
-        TBD ??
+    Attributes:
+        flg: Meter status flag
+        tim: Timestamp of data
+        pac: Grid power in W (positive: import, negative: export)
+        itd: Today's imported energy in 0.01 kWh
+        otd: Today's exported energy in 0.01 kWh
+        iet: Total imported energy in 0.1 kWh
+        oet: Total exported energy in 0.1 kWh
+        mod: Meter operating mode
+        enb: Meter enabled status
 
     """
 
@@ -162,7 +167,27 @@ class GetMeterDataResponse:
 
 @dataclass
 class GetMeterInfoResponse:
-    """Get meter info response."""
+    """Get meter info response.
+
+    Attributes:
+        mod: Meter mode
+        enb: Meter enabled status
+        exp_m: Export mode
+        regulate: Regulation value
+        enb_PF: Power Factor enabled status
+        target_PF: Target Power Factor value
+        total_pac: Total active power in W
+        total_fac: Total frequency in 0.01 Hz
+        meter_pac: Meter power in W
+        sn: Meter serial number
+        manufactory: Manufacturer name
+        type: Meter type
+        name: Meter name
+        model: Meter model code
+        abs: Absolute value flag
+        offset: Offset value
+
+    """
 
     mod: int | None = None
     enb: int | None = None
@@ -186,24 +211,55 @@ class GetMeterInfoResponse:
 class GetBatteryDataResponse:
     """Get battery data response model.
 
-    Attributes
-    ----------
-    flg : int
-        TBD ??
-    tim : str
-        Datetime in format YYYYMMDDHHMMSS
-    vb : int
-        Battery voltage [V] (/100)
-    cb : int
-        Battery current [A] (/10)
-    pb : int
-        Power pattery [W]
-    tb : int
-        Temperature [dC]
-    soc : int
-        State of charge [%]
-    soh : int
-        State of health [%]
+    Attributes:
+        flg: Battery status flag
+        tim: Timestamp of data
+        ppv: PV power in W
+        etdpv: PV energy today in 0.1 kWh
+        etopv: PV energy total in 0.1 kWh
+        cst: Communication status code
+        bst: Battery status code
+        eb1: Battery error code group 1
+        eb2: Battery error code group 2
+        eb3: Battery error code group 3
+        eb4: Battery error code group 4
+        wb1: Battery warning code group 1
+        wb2: Battery warning code group 2
+        wb3: Battery warning code group 3
+        wb4: Battery warning code group 4
+        vb: Battery voltage in 0.01 V
+        cb: Battery current in 0.1 A
+        pb: Battery power in W
+        tb: Battery temperature in 0.1°C
+        soc: State of charge in %
+        soh: State of health in %
+        cli: Current limit for charging in 0.1 A
+        clo: Current limit for discharging in 0.1 A
+        ebi: Battery energy for charging in 0.1 kWh
+        ebo: Battery energy for discharging in 0.1 kWh
+        eaci: AC energy for charging in 0.1 kWh
+        eaco: AC energy for discharging in 0.1 kWh
+        vesp: EPS voltage in 0.1 V
+        cesp: EPS current in 0.1 A
+        fesp: EPS frequency in 0.01 Hz
+        pesp: EPS power in W
+        rpesp: EPS reactive power in VAr
+        etdesp: EPS energy today in 0.1 kWh
+        etoesp: EPS energy total in 0.1 kWh
+        charge_ac_td: AC charge today in 0.1 kWh
+        charge_ac_to: AC charge total in 0.1 kWh
+        vl1esp: EPS phase 1 voltage in 0.1 V
+        il1esp: EPS phase 1 current in 0.1 A
+        pac1esp: EPS phase 1 power in W
+        qac1esp: EPS phase 1 reactive power in VAr
+        vl2esp: EPS phase 2 voltage in 0.1 V
+        il2esp: EPS phase 2 current in 0.1 A
+        pac2esp: EPS phase 2 power in W
+        qac2esp: EPS phase 2 reactive power in VAr
+        vl3esp: EPS phase 3 voltage in 0.1 V
+        il3esp: EPS phase 3 current in 0.1 A
+        pac3esp: EPS phase 3 power in W
+        qac3esp: EPS phase 3 reactive power in VAr
 
     """
 
@@ -259,7 +315,30 @@ class GetBatteryDataResponse:
 
 @dataclass
 class GetBatteryInfoItemResponse:
-    """Get battery info item response."""
+    """Get battery info item response.
+
+    Attributes:
+        bid: Battery ID
+        devtype: Device type
+        manufactoty: Manufacturer name
+        partno: Part number
+        model1sn: Model 1 serial number
+        model2sn: Model 2 serial number
+        model3sn: Model 3 serial number
+        model4sn: Model 4 serial number
+        model5sn: Model 5 serial number
+        model6sn: Model 6 serial number
+        model7sn: Model 7 serial number
+        model8sn: Model 8 serial number
+        modeltotal: Total number of models
+        monomertotoal: Total number of monomers
+        monomerinmodel: Monomers per model
+        ratedvoltage: Rated voltage
+        capacity: Battery capacity
+        hardwarever: Hardware version
+        softwarever: Software version
+
+    """
 
     bid: int | None = None
     devtype: str | None = None
@@ -286,12 +365,19 @@ class GetBatteryInfoItemResponse:
 class GetBatteryInfoResponse:
     """Get battery data response model.
 
-    Attributes
-    ----------
-    charge_max : int
-        Max charge battery level [%]
-    discharge_max : int
-        Max discharge battery level [%]
+    Attributes:
+        type: Battery system type
+        mod_r: Battery work mode
+        battery: Battery detail information
+        isn: Battery serial number
+        stu_r: Status register
+        muf: Manufacturer code
+        mod: Battery model code
+        num: Number of batteries
+        fir_r: Firmware register
+        charging: Charging status
+        charge_max: Max state of charge in %
+        discharge_max: Min state of charge in %
 
     """
 
@@ -311,7 +397,19 @@ class GetBatteryInfoResponse:
 
 @dataclass
 class SetBatteryConfigValueRequest:
-    """Set battery config value request."""
+    """Set battery config value request.
+
+    Attributes:
+        type: Battery system type
+        mod_r: Battery work mode
+        sn: Battery serial number
+        discharge_max: Min state of charge in %
+        charge_max: Max state of charge in %
+        muf: Manufacturer code
+        mod: Battery model code
+        num: Number of batteries
+
+    """
 
     type: int
     mod_r: int
@@ -325,7 +423,14 @@ class SetBatteryConfigValueRequest:
 
 @dataclass
 class SetBatteryConfigRequest:
-    """Set battery config request."""
+    """Set battery config request.
+
+    Attributes:
+        value: Battery configuration values
+        device: Device type ID (4 for battery)
+        action: Action to perform (setbattery)
+
+    """
 
     value: SetBatteryConfigValueRequest
     device: int = 4
@@ -334,10 +439,16 @@ class SetBatteryConfigRequest:
 
 @dataclass
 class BatteryWorkMode:
-    """Represent data for battery work mode."""
+    """Represent data for battery work mode.
+
+    Attributes:
+        name: Display name of the work mode
+        mod_r: Mode register value
+        type: Battery system type
+
+    """
 
     name: str
-
     mod_r: int
     type: int
 
@@ -519,6 +630,90 @@ class SolplanetApi:
         )
         request = SetBatteryConfigRequest(value=value)
         await self.client.post("setting.cgi", request)
+
+    async def modbus_read_holding_registers(
+        self,
+        data_type: DataType,
+        device_address: int,
+        register_address: int,
+        register_count: int = 1,
+    ) -> dict | int | str | None:
+        """Read modbus register."""
+        return await self._send_modbus(
+            frame=ModbusRtuFrameGenerator().generate_read_holding_register_frame(
+                device_id=device_address,
+                register_address=register_address,
+                register_length=register_count,
+            ),
+            data_type=data_type,
+        )
+
+    async def modbus_write_single_holding_register(
+        self,
+        data_type: DataType,
+        device_address: int,
+        register_address: int,
+        value: int,
+        dry_run: bool = False,
+    ) -> dict | int | str | None:
+        """Write modbus register."""
+        frame = ModbusRtuFrameGenerator().generate_write_single_holding_register_frame(
+            device_id=device_address,
+            register_address=register_address,
+            value=value,
+            data_type=data_type,
+        )
+        _LOGGER.debug(
+            "Generated frame for write single holding register (device_address: %s, data_type: %s, register_address: %s, value: %s, dry_run: %s): %s",
+            device_address,
+            data_type,
+            register_address,
+            value,
+            dry_run,
+            frame,
+        )
+        if dry_run:
+            return frame
+        return await self._send_modbus(frame=frame, data_type=data_type)
+
+    async def modbus_read_input_registers(
+        self,
+        data_type: DataType,
+        device_address: int,
+        register_address: int,
+        register_count: int = 1,
+    ) -> dict | int | str | None:
+        """Read modbus register."""
+        return await self._send_modbus(
+            frame=ModbusRtuFrameGenerator().generate_read_input_register_frame(
+                device_id=device_address,
+                register_address=register_address,
+                register_length=register_count,
+            ),
+            data_type=data_type,
+        )
+
+    async def _send_modbus(
+        self,
+        frame: str,
+        data_type: DataType,
+    ) -> dict | int | str | None:
+        """Send modbus frame."""
+        start_time = time.time()  # Start measuring time
+        response = await self.client.post("fdbg.cgi", {"data": frame})
+        end_time = time.time()  # End measuring time
+        elapsed_time = end_time - start_time
+
+        _LOGGER.debug("Modbus RTU request frame: %s", frame)
+        _LOGGER.debug("Modbus RTU response frame: %s", response)
+        _LOGGER.debug("Modbus RTU request time: %.2f seconds", elapsed_time)
+
+        data = ModbusRtuFrameGenerator().decode_response(
+            response_hex=response["data"], data_type=data_type
+        )
+        _LOGGER.debug("Modbus RTU response decoded: %s", data)
+
+        return data
 
     def _create_class_from_dict(self, cls, dict):
         return cls(**{k: v for k, v in dict.items() if k in signature(cls).parameters})
