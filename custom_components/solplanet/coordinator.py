@@ -7,7 +7,7 @@ import logging
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .client import BatteryWorkMode, BatteryWorkModes, SolplanetApi
+from .client import BatteryWorkMode, BatteryWorkModes, ScheduleSlot, SolplanetApi, BatterySchedule
 from .const import BATTERY_IDENTIFIER, DOMAIN, INVERTER_IDENTIFIER, METER_IDENTIFIER
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,6 +50,18 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
                 *[self.__api.get_battery_info(isn) for isn in battery_isns]
             )
 
+            # Get schedule for each battery
+            battery_schedules = []
+            for isn in battery_isns:
+                raw_response = await self.__api.get_schedule()
+                battery_schedules.append({
+                    "raw": raw_response.get("raw", {}),  # Store the raw API response
+                    "slots": raw_response.get("slots", {}),  # Decode using new method
+                    "Pin": raw_response.get("Pin", 5000),
+                    "Pout": raw_response.get("Pout", 5000)
+                })
+            _LOGGER.debug("Battery schedules: %s", battery_schedules)
+
             meter = None
             meter_sn = isns[0] if len(isns) > 0 else None
             try:
@@ -80,6 +92,7 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
                                 battery_info[i].type, battery_info[i].mod_r
                             ),
                         },
+                        "schedule": battery_schedules[i],
                     }
                     for i in range(len(battery_isns))
                 },
@@ -103,4 +116,38 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
     async def set_battery_soc_max(self, sn: str, value: int) -> None:
         """Set battery soc max."""
         await self.__api.set_battery_soc_max(sn, value)
+        await self.async_refresh()
+
+    async def set_battery_schedule(self, sn: str, slots: dict[str, list[ScheduleSlot]], 
+                                 pin: int = 5000, pout: int = 5000) -> None:
+        """Set battery schedule."""
+        await self.__api.set_schedule(slots, pin, pout)
+        await self.async_refresh()
+
+    async def set_battery_schedule_slots(self, sn: str, slots: dict[str, list[ScheduleSlot]]) -> None:
+        """Set battery schedule slots."""
+        _LOGGER.debug("Setting schedule slots for %s: %s", sn, slots)
+        current = await self.__api.get_schedule()
+        raw_schedule = BatterySchedule.encode_schedule(
+            slots,
+            pin=current["raw"].get("Pin", 5000),
+            pout=current["raw"].get("Pout", 5000)
+        )
+        _LOGGER.debug("Encoded schedule: %s", raw_schedule)
+        await self.__api.set_schedule_slots(raw_schedule)
+        await self.async_refresh()
+
+    async def set_battery_schedule_power(self, sn: str, pin: int | None = None, pout: int | None = None) -> None:
+        """Set battery schedule power settings."""
+        await self.__api.set_schedule_power(pin, pout)
+        await self.async_refresh()
+
+    async def set_battery_schedule_pin(self, sn: str, pin: int) -> None:
+        """Set battery schedule pin."""
+        await self.__api.set_schedule_pin(pin)
+        await self.async_refresh()
+
+    async def set_battery_schedule_pout(self, sn: str, pout: int) -> None:
+        """Set battery schedule pout."""
+        await self.__api.set_schedule_pout(pout)
         await self.async_refresh()

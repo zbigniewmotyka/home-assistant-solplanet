@@ -1,0 +1,84 @@
+set_schedule_slot:
+  name: Set Schedule Slot
+  description: Set a charging/discharging schedule slot for a specific battery
+  target:
+    entity:
+      integration: solplanet
+      domain: binary_sensor
+  fields:
+    day:
+      name: Day
+      description: Day of the week
+      required: true
+      selector:
+        select:
+          options:
+            - "Mon"
+            - "Tus"
+            - "Wen"
+            - "Thu"
+            - "Fri"
+            - "Sat"
+            - "Sun"
+    start_hour:
+      name: Start Hour
+      description: Hour to start (0-23)
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 23
+          step: 1
+          mode: box
+    start_minute:
+      name: Start Minute
+      description: Minute to start (0 or 30)
+      required: true
+      selector:
+        select:
+          options:
+            - 0
+            - 30
+    duration:
+      name: Duration
+      description: Duration in hours (1-4)
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 4
+          step: 1
+          mode: box
+    mode:
+      name: Mode
+      description: Charge or discharge mode
+      required: true
+      selector:
+        select:
+          options:
+            - "charge"
+            - "discharge"
+
+clear_schedule:
+  name: Clear Schedule
+  description: Clear schedule for specific battery
+  target:
+    entity:
+      integration: solplanet
+      domain: binary_sensor
+  fields:
+    day:
+      name: Day
+      description: Day to clear or 'all' for all days
+      required: true
+      selector:
+        select:
+          options:
+            - "all"
+            - "Mon"
+            - "Tus"
+            - "Wen"
+            - "Thu"
+            - "Fri"
+            - "Sat"
+            - "Sun"

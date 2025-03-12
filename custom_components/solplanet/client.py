@@ -333,6 +333,14 @@ class SetBatteryConfigRequest:
 
 
 @dataclass
+class SetScheduleRequest:
+    """Set schedule request."""
+    value: dict[str, Any]
+    device: int = 4
+    action: str = "setdefine"
+
+
+@dataclass
 class BatteryWorkMode:
     """Represent data for battery work mode."""
 
@@ -379,6 +387,164 @@ class BatteryWorkModes:
             ),
             None,
         )
+
+
+@dataclass
+class ScheduleSlot:
+    """Represent a battery schedule time slot."""
+    start_hour: int
+    start_minute: int
+    duration: int
+    mode: str
+
+    @classmethod
+    def from_raw(cls, code: int) -> 'ScheduleSlot | None':
+        """Create slot from raw inverter code."""
+        if code == 0:
+            return None
+            
+        discharge_bit = code & 0x1
+        duration_bits = (code >> 14) & 0x3
+        half_hour_bit = (code >> 17) & 0x1
+        hour_bits = code >> 24
+
+        return cls(
+            start_hour=hour_bits,
+            start_minute=30 if half_hour_bit else 0,
+            duration=duration_bits + 1,
+            mode="discharge" if discharge_bit else "charge"
+        )
+
+    @classmethod
+    def from_time(cls, start: str, duration: int, mode: str) -> 'ScheduleSlot':
+        """Create slot from time string (HH:MM), duration and mode."""
+        hour, minute = map(int, start.split(':'))
+        if minute not in [0, 30]:
+            raise ValueError("Minutes must be 0 or 30")
+        if not 0 <= hour <= 23:
+            raise ValueError("Hour must be between 0 and 23")
+        if not 1 <= duration <= 4:
+            raise ValueError("Duration must be between 1 and 4 hours")
+        if mode not in ["charge", "discharge"]:
+            raise ValueError("Mode must be 'charge' or 'discharge'")
+            
+        return cls(
+            start_hour=hour,
+            start_minute=minute,
+            duration=duration,
+            mode=mode
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'ScheduleSlot':
+        """Create slot from dictionary with start, duration, mode."""
+        if isinstance(data.get('start'), str):
+            return cls.from_time(data['start'], data['duration'], data['mode'])
+        return cls(
+            start_hour=data['start_hour'],
+            start_minute=data['start_minute'],
+            duration=data['duration'],
+            mode=data['mode']
+        )
+
+    def to_raw(self) -> int:
+        """Convert slot to raw inverter format."""
+        if self.start_minute not in [0, 30]:
+            raise ValueError("Minutes must be 0 or 30")
+            
+        BASE = 0x3C02
+        HOUR = 0x1000000
+        HALF = 0x1E0000
+        DURATION = 0x3C00
+        
+        return (BASE +
+                (self.start_hour * HOUR) +
+                ((self.start_minute // 30) * HALF) +
+                ((self.duration - 1) * DURATION) +
+                (1 if self.mode == "discharge" else 0))
+
+    def to_dict(self) -> dict:
+        """Convert slot to dictionary format."""
+        return {
+            "start_hour": self.start_hour,
+            "start_minute": self.start_minute,
+            "duration": self.duration,
+            "mode": self.mode
+        }
+
+    def human_readable(self, format: str = "{start} - {end} ({mode})") -> str:
+        """Convert slot to human readable string.
+        
+        Args:
+            format: Format string with {start}, {end}, {mode} placeholders
+        """
+        end_hour = (self.start_hour + self.duration) % 24
+        return format.format(
+            start=f"{self.start_hour:02d}:{self.start_minute:02d}",
+            end=f"{end_hour:02d}:{self.start_minute:02d}",
+            mode=self.mode
+        )
+
+    def validate_duration(self) -> None:
+        """Validate slot duration doesn't cross midnight."""
+        end_hour = self.start_hour + self.duration
+        if end_hour > 24:
+            raise ValueError(f"Slot ending at {end_hour}:00 crosses midnight. At {self.start_hour}:00 max duration is {24-self.start_hour} hours")
+
+    @staticmethod
+    def validate_slots(slots: list['ScheduleSlot']) -> None:
+        """Validate a list of slots."""
+        if len(slots) > 6:
+            raise ValueError("Maximum 6 slots per day allowed")
+            
+        sorted_slots = sorted(slots, key=lambda x: (x.start_hour, x.start_minute))
+        
+        for i, slot in enumerate(sorted_slots):
+            slot.validate_duration()
+            
+            if i < len(sorted_slots) - 1:
+                next_slot = sorted_slots[i + 1]
+                current_end = slot.start_hour + slot.duration
+                current_end_mins = slot.start_minute
+                next_start = next_slot.start_hour
+                next_start_mins = next_slot.start_minute
+                
+                if (current_end > next_start) or (current_end == next_start and current_end_mins > next_start_mins):
+                    raise ValueError(f"Slot {slot.human_readable()} overlaps with {next_slot.human_readable()}")
+
+
+class BatterySchedule:
+    """Helper for battery schedule operations."""
+    DAYS = ["Mon", "Tus", "Wen", "Thu", "Fri", "Sat", "Sun"]
+
+    @staticmethod
+    def decode_schedule(raw_schedule: dict) -> dict[str, list[ScheduleSlot]]:
+        """Decode raw schedule into slots."""
+        return {
+            day: [
+                slot for code in raw_schedule.get(day, [])[:6]  # Limit to 6 slots
+                if (slot := ScheduleSlot.from_raw(code)) is not None
+            ]
+            for day in BatterySchedule.DAYS
+        }
+
+    @staticmethod
+    def encode_schedule(slots: dict[str, list[ScheduleSlot]], pin: int = 5000, pout: int = 5000) -> dict:
+        """Encode slots into raw schedule."""
+        # Validate slots for each day
+        for day, day_slots in slots.items():
+            if day_slots:  # Only validate if there are slots
+                ScheduleSlot.validate_slots(day_slots)
+                
+        return {
+            **{
+                day: [slot.to_raw() for slot in day_slots]
+                for day, day_slots in slots.items()
+                if day_slots  # Only include days with slots
+            },
+            "Pin": pin,
+            "Pout": pout
+        }
 
 
 class SolplanetClient:
@@ -518,6 +684,58 @@ class SolplanetApi:
             discharge_max=current_config.discharge_max,
         )
         request = SetBatteryConfigRequest(value=value)
+        await self.client.post("setting.cgi", request)
+
+    async def get_schedule(self) -> dict:
+        """Get battery schedule configuration."""
+        _LOGGER.debug("Getting battery schedule")
+        raw_response = await self.client.get("getdefine.cgi")
+        slots = BatterySchedule.decode_schedule(raw_response)
+        return {
+            "raw": raw_response,       # Store raw API response as-is
+            "slots": slots,            # Store decoded schedule
+            "Pin": raw_response.get("Pin", 5000),
+            "Pout": raw_response.get("Pout", 5000)
+        }
+
+    async def set_schedule_slots(self, slots: dict[str, list[ScheduleSlot]]) -> None:
+        """Set battery schedule slots configuration."""
+        _LOGGER.debug("Setting battery schedule slots: %s", slots)
+        current = await self.get_schedule()
+        schedule = BatterySchedule.encode_schedule(slots)  # Changed from create_slots_schedule
+        request = SetScheduleRequest(value=schedule)
+        await self.client.post("setting.cgi", request)
+
+    async def set_schedule_power(self, pin: int | None = None, pout: int | None = None) -> None:
+        """Set battery schedule power configuration."""
+        _LOGGER.debug("Setting battery schedule power - pin: %s, pout: %s", pin, pout)
+        current = await self.get_schedule()
+        schedule = BatterySchedule.encode_schedule({},   # Changed method name and use empty slots
+            pin=pin if pin is not None else current["Pin"],
+            pout=pout if pout is not None else current["Pout"])
+        request = SetScheduleRequest(value=schedule)
+        await self.client.post("setting.cgi", request)
+
+    async def set_schedule_pin(self, pin: int) -> None:
+        """Set battery schedule pin configuration."""
+        _LOGGER.debug("Setting battery schedule pin: %s", pin)
+        current = await self.get_schedule()
+        schedule = BatterySchedule.encode_schedule({}, pin=pin, pout=current["Pout"])  # Changed method
+        request = SetScheduleRequest(value=schedule)
+        await self.client.post("setting.cgi", request)
+
+    async def set_schedule_pout(self, pout: int) -> None:
+        """Set battery schedule pout configuration."""
+        _LOGGER.debug("Setting battery schedule pout: %s", pout)
+        current = await self.get_schedule()
+        schedule = BatterySchedule.encode_schedule({}, pin=current["Pin"], pout=pout)  # Changed method
+        request = SetScheduleRequest(value=schedule)
+        await self.client.post("setting.cgi", request)
+
+    async def set_schedule_slots(self, schedule: dict) -> None:
+        """Set battery schedule configuration directly with raw schedule."""
+        _LOGGER.debug("Setting raw schedule: %s", schedule)
+        request = SetScheduleRequest(value=schedule)
         await self.client.post("setting.cgi", request)
 
     def _create_class_from_dict(self, cls, dict):

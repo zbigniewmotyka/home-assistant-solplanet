@@ -23,8 +23,14 @@ from .const import (
     METER_IDENTIFIER,
 )
 from .coordinator import SolplanetDataUpdateCoordinator
+from .services import async_setup_services
 
-PLATFORMS: list[Platform] = [Platform.NUMBER, Platform.SELECT, Platform.SENSOR]
+PLATFORMS: list[Platform] = [
+    Platform.SENSOR,
+    Platform.NUMBER,
+    Platform.SELECT,
+    Platform.BINARY_SENSOR,
+]
 CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,8 +41,11 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup(hass: HomeAssistant, entry: SolplanetConfigEntry) -> bool:
     """Set up the Solplanet integration."""
-
     hass.data.setdefault(DOMAIN, {})
+    
+    # Set up services
+    await async_setup_services(hass)
+    
     return True
 
 

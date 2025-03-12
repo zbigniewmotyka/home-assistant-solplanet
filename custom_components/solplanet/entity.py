@@ -29,6 +29,7 @@ class SolplanetEntityDescription(EntityDescription):
     data_field_value_multiply: float | None = None
     data_field_value_mapper: abc.Callable[[Any], Any] | None = None
     unique_id_suffix: str | None = None
+    attributes_fn: abc.Callable[[Any], dict[str, Any]] | None = None
 
 
 class SolplanetEntity(CoordinatorEntity, Entity):
@@ -158,3 +159,19 @@ class SolplanetEntity(CoordinatorEntity, Entity):
                 },
             }
         )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return additional state attributes."""
+        if not self.entity_description.attributes_fn:
+            return None
+            
+        data = self.coordinator.data[
+            self.entity_description.data_field_device_type
+        ][self._isn][self.entity_description.data_field_data_type]
+
+        try:
+            return self.entity_description.attributes_fn(data)
+        except Exception as err:
+            _LOGGER.debug("Error getting attributes: %s", err)
+            return None
