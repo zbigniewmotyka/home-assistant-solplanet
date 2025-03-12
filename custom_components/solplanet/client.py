@@ -810,14 +810,6 @@ class SolplanetApi:
             "Pout": raw_response.get("Pout", 5000)
         }
 
-    async def set_schedule_slots(self, slots: dict[str, list[ScheduleSlot]]) -> None:
-        """Set battery schedule slots configuration."""
-        _LOGGER.debug("Setting battery schedule slots: %s", slots)
-        current = await self.get_schedule()
-        schedule = BatterySchedule.encode_schedule(slots)  # Changed from create_slots_schedule
-        request = SetScheduleRequest(value=schedule)
-        await self.client.post("setting.cgi", request)
-
     async def set_schedule_power(self, pin: int | None = None, pout: int | None = None) -> None:
         """Set battery schedule power configuration."""
         _LOGGER.debug("Setting battery schedule power - pin: %s, pout: %s", pin, pout)
