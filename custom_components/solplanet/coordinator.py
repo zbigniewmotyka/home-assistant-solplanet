@@ -118,12 +118,6 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
         await self.__api.set_battery_soc_max(sn, value)
         await self.async_refresh()
 
-    async def set_battery_schedule(self, sn: str, slots: dict[str, list[ScheduleSlot]], 
-                                 pin: int = 5000, pout: int = 5000) -> None:
-        """Set battery schedule."""
-        await self.__api.set_schedule(slots, pin, pout)
-        await self.async_refresh()
-
     async def set_battery_schedule_slots(self, sn: str, slots: dict[str, list[ScheduleSlot]]) -> None:
         """Set battery schedule slots."""
         _LOGGER.debug("Setting schedule slots for %s: %s", sn, slots)
