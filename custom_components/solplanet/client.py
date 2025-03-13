@@ -643,7 +643,7 @@ class BatterySchedule:
     def encode_schedule(slots: dict[str, list[ScheduleSlot]], pin: int = 5000, pout: int = 5000) -> dict:
         """Encode slots into raw schedule."""
         # Validate slots for each day
-        for day, day_slots in slots.items():
+        for day_slots in slots.values():
             if day_slots:  # Only validate if there are slots
                 ScheduleSlot.validate_slots(day_slots)
                 

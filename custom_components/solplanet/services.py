@@ -60,7 +60,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             
         processed = False
         for isn in isns:
-            for entry_id, data in hass.data[DOMAIN].items():
+            for data in hass.data[DOMAIN].values():
                 coordinator = data["coordinator"]
                 if isn in coordinator.data[BATTERY_IDENTIFIER]:
                     try:
@@ -114,7 +114,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             
         processed = False
         for isn in isns:
-            for entry_id, data in hass.data[DOMAIN].items():
+            for data in hass.data[DOMAIN].values():
                 coordinator = data["coordinator"]
                 if isn in coordinator.data[BATTERY_IDENTIFIER]:
                     # Get current schedule
