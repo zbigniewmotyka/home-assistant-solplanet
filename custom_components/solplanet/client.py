@@ -812,9 +812,9 @@ class SolplanetApi:
 
     async def set_schedule_power(self, pin: int | None = None, pout: int | None = None) -> None:
         """Set battery schedule power configuration."""
-        _LOGGER.debug("Setting battery schedule power - pin: %s, pout: %s", pin, pout)
         current = await self.get_schedule()
-        schedule = BatterySchedule.encode_schedule({},   # Changed method name and use empty slots
+        schedule = BatterySchedule.encode_schedule(
+            current["slots"],
             pin=pin if pin is not None else current["Pin"],
             pout=pout if pout is not None else current["Pout"])
         request = SetScheduleRequest(value=schedule)
@@ -822,17 +822,21 @@ class SolplanetApi:
 
     async def set_schedule_pin(self, pin: int) -> None:
         """Set battery schedule pin configuration."""
-        _LOGGER.debug("Setting battery schedule pin: %s", pin)
         current = await self.get_schedule()
-        schedule = BatterySchedule.encode_schedule({}, pin=pin, pout=current["Pout"])  # Changed method
+        schedule = BatterySchedule.encode_schedule(
+            current["slots"],
+            pin=pin, 
+            pout=current["Pout"])
         request = SetScheduleRequest(value=schedule)
         await self.client.post("setting.cgi", request)
 
     async def set_schedule_pout(self, pout: int) -> None:
         """Set battery schedule pout configuration."""
-        _LOGGER.debug("Setting battery schedule pout: %s", pout)
         current = await self.get_schedule()
-        schedule = BatterySchedule.encode_schedule({}, pin=current["Pin"], pout=pout)  # Changed method
+        schedule = BatterySchedule.encode_schedule(
+            current["slots"],
+            pin=current["Pin"], 
+            pout=pout)
         request = SetScheduleRequest(value=schedule)
         await self.client.post("setting.cgi", request)
 
