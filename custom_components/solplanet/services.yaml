@@ -1,0 +1,61 @@
+modbus_write_single_holding_register:
+  name: Modbus write single holding register
+  description: >
+    Write a single holding register to a modbus device.
+  fields:
+    device_address:
+      name: Device address
+      description: The modbus device address.
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 255
+          step: 1
+          mode: box
+    register_address:
+      name: Register address
+      description: The modbus register address to write to (full address, not offset).
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 65535
+          step: 1
+          mode: box
+    data_type:
+      name: Data type
+      description: The type of data to write.
+      required: true
+      selector:
+        select:
+          options:
+            - label: "B16 - Bit field 16-bit"
+              value: "B16"
+            - label: "B32 - Bit field 32-bit"
+              value: "B32"
+            - label: "S16 - Signed 16-bit Integer"
+              value: "S16"
+            - label: "U16 - Unsigned 16-bit Integer"
+              value: "U16"
+            - label: "S32 - Signed 32-bit Integer"
+              value: "S32"
+            - label: "U32 - Unsigned 32-bit Integer"
+              value: "U32"
+            - label: "E16 - Number code 16-bit"
+              value: "E16"
+    value:
+      name: Data value
+      description: The value to write to the register.
+      required: true
+      selector:
+        number:
+          step: 1
+          mode: box
+    dry_run:
+      name: Dry run
+      description: If true, rtu frame will be generated and logged but not sent.
+      required: true
+      default: false
+      selector:
+        boolean: {}
