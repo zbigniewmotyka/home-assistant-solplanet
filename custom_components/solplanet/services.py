@@ -66,10 +66,6 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     try:
                         # Get current schedule
                         current_schedule = coordinator.data[BATTERY_IDENTIFIER][isn]["schedule"]["slots"]
-
-                        # Check if we already have 6 slots for this day
-                        if call.data["day"] in current_schedule and len(current_schedule[call.data["day"]]) >= 6:
-                            raise vol.Invalid("Cannot add more than 6 slots per day")
                         
                         # Create new slot
                         slot = ScheduleSlot.from_time(
@@ -81,21 +77,25 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         # Get existing slots for the day
                         new_slots = dict(current_schedule)
                         day_slots = new_slots.get(call.data["day"], [])
-                        day_slots.append(slot)
                         
-                        try:
-                            # This will validate max slots, overlaps, and midnight crossing
-                            ScheduleSlot.validate_slots(day_slots)
-                        except ValueError as err:
-                            raise vol.Invalid(str(err)) from err
+                        if len(day_slots) >= 6:
+                            raise vol.Invalid("Cannot add more than 6 slots per day")
                             
-                        new_slots[call.data["day"]] = day_slots
+                        day_slots.append(slot)
+                        ScheduleSlot.validate_slots(day_slots)  # This will raise ValueError for validation issues
                         
+                        new_slots[call.data["day"]] = day_slots
                         await coordinator.set_battery_schedule_slots(isn, new_slots)
                         processed = True
                         break
-                    except Exception as err:
-                        raise
+                        
+                    except ValueError as err:
+                        # Handle validation errors only (overlaps, duration, midnight crossing)
+                        raise vol.Invalid(str(err)) from err
+                    except (KeyError, ConnectionError, TimeoutError) as err:
+                        # Handle specific API/network errors
+                        _LOGGER.error("Failed to access inverter: %s", err)
+                        raise vol.Invalid(f"Communication error: {err}") from err
                     
         if not processed:
             raise vol.Invalid(f"No valid battery coordinator found for ISNs {isns}")
