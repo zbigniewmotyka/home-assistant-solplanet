@@ -6,7 +6,7 @@ import logging
 from typing import Any
 
 from homeassistant.components.number import NumberEntity, NumberEntityDescription
-from homeassistant.const import PERCENTAGE
+from homeassistant.const import UnitOfPower, PERCENTAGE
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -76,6 +76,32 @@ def create_battery_entites_description(
             native_step=1,
             native_unit_of_measurement=PERCENTAGE,
             callback=lambda value: coordinator.set_battery_soc_min(isn, int(value)),
+        ),
+        SolplanetNumberEntityDescription(
+            key=f"{isn}_schedule_pin",
+            name="Schedule Input Power",
+            icon="mdi:flash-triangle",
+            data_field_device_type=BATTERY_IDENTIFIER,
+            data_field_data_type="schedule",
+            data_field_path=["Pin"],  # Changed to use dict key
+            native_min_value=0,
+            native_max_value=10000,
+            native_step=100,
+            native_unit_of_measurement=UnitOfPower.WATT,
+            callback=lambda value: coordinator.set_battery_schedule_pin(isn, int(value)),
+        ),
+        SolplanetNumberEntityDescription(
+            key=f"{isn}_schedule_pout",
+            name="Schedule Output Power", 
+            icon="mdi:flash-triangle-outline",
+            data_field_device_type=BATTERY_IDENTIFIER,
+            data_field_data_type="schedule",
+            data_field_path=["Pout"],  # Changed to use dict key
+            native_min_value=0,
+            native_max_value=10000,
+            native_step=100,
+            native_unit_of_measurement=UnitOfPower.WATT,
+            callback=lambda value: coordinator.set_battery_schedule_pout(isn, int(value)),
         ),
     ]
 

@@ -1,0 +1,146 @@
+set_schedule_slot:
+  name: Set Schedule Slot
+  description: Set a charging/discharging schedule slot for a specific battery
+  target:
+    entity:
+      integration: solplanet
+      domain: binary_sensor
+  fields:
+    day:
+      name: Day
+      description: Day of the week
+      required: true
+      selector:
+        select:
+          options:
+            - "Mon"
+            - "Tus"
+            - "Wen"
+            - "Thu"
+            - "Fri"
+            - "Sat"
+            - "Sun"
+    start_hour:
+      name: Start Hour
+      description: Hour to start (0-23)
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 23
+          step: 1
+          mode: box
+    start_minute:
+      name: Start Minute
+      description: Minute to start (0 or 30)
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 30
+          step: 30
+          mode: box
+    duration:
+      name: Duration
+      description: Duration in hours (1-4)
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 4
+          step: 1
+          mode: box
+    mode:
+      name: Mode
+      description: Charge or discharge mode
+      required: true
+      selector:
+        select:
+          options:
+            - "charge"
+            - "discharge"
+
+clear_schedule:
+  name: Clear Schedule
+  description: Clear schedule for specific battery
+  target:
+    entity:
+      integration: solplanet
+      domain: binary_sensor
+  fields:
+    day:
+      name: Day
+      description: Day to clear or 'all' for all days
+      required: true
+      selector:
+        select:
+          options:
+            - "all"
+            - "Mon"
+            - "Tus"
+            - "Wen"
+            - "Thu"
+            - "Fri"
+            - "Sat"
+            - "Sun"
+
+modbus_write_single_holding_register:
+  name: Modbus write single holding register
+  description: Write a single holding register to a modbus device.
+  fields:
+    device_address:
+      name: Device address
+      description: The modbus device address.
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 255
+          step: 1
+          mode: box
+    register_address:
+      name: Register address
+      description: The modbus register address to write to (full address, not offset).
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 65535
+          step: 1
+          mode: box
+    data_type:
+      name: Data type
+      description: The type of data to write.
+      required: true
+      selector:
+        select:
+          options:
+            - label: "B16 - Bit field 16-bit"
+              value: "B16"
+            - label: "B32 - Bit field 32-bit"
+              value: "B32"
+            - label: "S16 - Signed 16-bit Integer"
+              value: "S16"
+            - label: "U16 - Unsigned 16-bit Integer"
+              value: "U16"
+            - label: "S32 - Signed 32-bit Integer"
+              value: "S32"
+            - label: "U32 - Unsigned 32-bit Integer"
+              value: "U32"
+            - label: "E16 - Number code 16-bit"
+              value: "E16"
+    value:
+      name: Data value
+      description: The value to write to the register.
+      required: true
+      selector:
+        number:
+          step: 1
+          mode: box
+    dry_run:
+      name: Dry run
+      description: If true, rtu frame will be generated and logged but not sent.
+      required: true
+      default: false
+      selector:
+        boolean: {}
