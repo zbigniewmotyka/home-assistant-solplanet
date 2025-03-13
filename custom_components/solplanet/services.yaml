@@ -35,10 +35,11 @@ set_schedule_slot:
       description: Minute to start (0 or 30)
       required: true
       selector:
-        select:
-          options:
-            - 0
-            - 30
+        number:
+          min: 0
+          max: 30
+          step: 30
+          mode: box
     duration:
       name: Duration
       description: Duration in hours (1-4)
