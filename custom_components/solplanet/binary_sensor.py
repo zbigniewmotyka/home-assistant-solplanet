@@ -57,8 +57,8 @@ def create_battery_binary_sensors(coordinator, isn: str) -> list[SolplanetBinary
 
     return [
         SolplanetBinarySensorEntityDescription(
-            key=f"{isn}_schedule_active",
-            name="Schedule Active",
+            key=f"{isn}_schedule_configured",
+            name="Schedule Configured",
             data_field_device_type=BATTERY_IDENTIFIER,
             data_field_data_type="schedule",
             data_field_path=["raw"],
