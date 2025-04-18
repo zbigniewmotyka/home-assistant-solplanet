@@ -93,6 +93,18 @@ class SolplanetEntity(CoordinatorEntity, Entity):
         except KeyError:
             raise InverterInSleepModeError from None
 
+        flag_property = "flg"
+        try:
+            flg = (
+                getattr(data, flag_property)
+                if hasattr(data, "__dict__")
+                else data.get(flag_property)
+            )
+            if flg == 0 and self.entity_description.data_field_path != [flag_property]:
+                return None
+        except AttributeError:
+            pass
+
         for path_item in self.entity_description.data_field_path:
             if (
                 (isinstance(data, list) and len(data) > 0)
@@ -154,7 +166,7 @@ class SolplanetEntity(CoordinatorEntity, Entity):
                 "identifiers": {
                     (
                         DOMAIN,
-                        f"{self.entity_description.data_field_device_type}_{self._isn or ""}",
+                        f"{self.entity_description.data_field_device_type}_{self._isn or ''}",
                     )
                 },
             }
@@ -165,10 +177,10 @@ class SolplanetEntity(CoordinatorEntity, Entity):
         """Return additional state attributes."""
         if not self.entity_description.attributes_fn:
             return None
-            
-        data = self.coordinator.data[
-            self.entity_description.data_field_device_type
-        ][self._isn][self.entity_description.data_field_data_type]
+
+        data = self.coordinator.data[self.entity_description.data_field_device_type][
+            self._isn
+        ][self.entity_description.data_field_data_type]
 
         try:
             return self.entity_description.attributes_fn(data)
