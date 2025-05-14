@@ -93,18 +93,6 @@ class SolplanetEntity(CoordinatorEntity, Entity):
         except KeyError:
             raise InverterInSleepModeError from None
 
-        flag_property = "flg"
-        try:
-            flg = (
-                getattr(data, flag_property)
-                if hasattr(data, "__dict__")
-                else data.get(flag_property)
-            )
-            if flg == 0 and self.entity_description.data_field_path != [flag_property]:
-                return None
-        except AttributeError:
-            pass
-
         for path_item in self.entity_description.data_field_path:
             if (
                 (isinstance(data, list) and len(data) > 0)
@@ -184,6 +172,6 @@ class SolplanetEntity(CoordinatorEntity, Entity):
 
         try:
             return self.entity_description.attributes_fn(data)
-        except Exception as err:
+        except Exception as err:  # noqa: BLE001
             _LOGGER.debug("Error getting attributes: %s", err)
             return None
