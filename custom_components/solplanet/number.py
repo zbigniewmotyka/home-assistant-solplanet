@@ -92,7 +92,7 @@ def create_battery_entites_description(
         ),
         SolplanetNumberEntityDescription(
             key=f"{isn}_schedule_pout",
-            name="Schedule Output Power", 
+            name="Schedule Output Power",
             icon="mdi:flash-triangle-outline",
             data_field_device_type=BATTERY_IDENTIFIER,
             data_field_data_type="schedule",
