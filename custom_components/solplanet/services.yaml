@@ -1,10 +1,10 @@
 set_schedule_slot:
+  set_schedule_slot:
   name: Set Schedule Slot
   description: Set a charging/discharging schedule slot for a specific battery
   target:
-    entity:
+    device:
       integration: solplanet
-      domain: binary_sensor
   fields:
     day:
       name: Day
@@ -64,9 +64,8 @@ clear_schedule:
   name: Clear Schedule
   description: Clear schedule for specific battery
   target:
-    entity:
+    device:
       integration: solplanet
-      domain: binary_sensor
   fields:
     day:
       name: Day
@@ -87,6 +86,9 @@ clear_schedule:
 modbus_write_single_holding_register:
   name: Modbus write single holding register
   description: Write a single holding register to a modbus device.
+  target:
+    device:
+      integration: solplanet
   fields:
     device_address:
       name: Device address
