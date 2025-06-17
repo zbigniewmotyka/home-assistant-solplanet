@@ -40,10 +40,10 @@ type SolplanetConfigEntry = ConfigEntry[SolplanetApi]
 async def async_setup(hass: HomeAssistant, entry: SolplanetConfigEntry) -> bool:
     """Set up the Solplanet integration."""
     hass.data.setdefault(DOMAIN, {})
-    
+
     # Set up services
     await async_setup_services(hass)
-    
+
     return True
 
 
