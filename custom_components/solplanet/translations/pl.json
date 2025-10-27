@@ -1,0 +1,38 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "host": "Adres IP / host falownika Solplanet",
+          "interval": "Odświeżaj dane co (sekundy)"
+        }
+      },
+      "reconfigure": {
+        "title": "Rekonfiguruj Solplanet",
+        "description": "Zaktualizuj interwał odpytywania dla tego urządzenia",
+        "data": {
+          "interval": "Odświeżaj dane co (sekundy)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Nie można połączyć się z urządzeniem",
+      "unknown": "Nieoczekiwany błąd"
+    },
+    "abort": {
+      "already_configured": "Urządzenie jest już skonfigurowane",
+      "reconfigure_successful": "Konfiguracja została zaktualizowana pomyślnie"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Konfiguruj Solplanet",
+        "description": "Zaktualizuj interwał odpytywania dla tego urządzenia",
+        "data": {
+          "interval": "Odświeżaj dane co (sekundy)"
+        }
+      }
+    }
+  }
+}

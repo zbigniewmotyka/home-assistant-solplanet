@@ -16,11 +16,11 @@
       }
     },
     "error": {
-      "cannot_connect": "[%key:common::config_flow::error::cannot_connect%]",
-      "unknown": "[%key:common::config_flow::error::unknown%]"
+      "cannot_connect": "Cannot connect to the device",
+      "unknown": "Unexpected error"
     },
     "abort": {
-      "already_configured": "[%key:common::config_flow::abort::already_configured_device%]",
+      "already_configured": "Device is already configured",
       "reconfigure_successful": "Configuration updated successfully"
     }
   },
@@ -36,3 +36,4 @@
     }
   }
 }
+
