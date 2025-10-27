@@ -7,7 +7,12 @@ from typing import Any
 
 import voluptuous as vol
 
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
 from homeassistant.const import CONF_HOST
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
@@ -52,6 +57,39 @@ class SolplanetConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
     MINOR_VERSION = 2
 
+    @staticmethod
+    def async_get_options_flow(
+        config_entry: ConfigEntry,
+    ) -> SolplanetOptionsFlow:
+        """Get the options flow for this handler."""
+        return SolplanetOptionsFlow(config_entry)
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Handle reconfiguration of the integration."""
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+
+        if user_input is not None:
+            # Update the config entry with new interval
+            new_data = {**entry.data, CONF_INTERVAL: user_input[CONF_INTERVAL]}
+            self.hass.config_entries.async_update_entry(entry, data=new_data)
+            await self.hass.config_entries.async_reload(entry.entry_id)
+            return self.async_abort(reason="reconfigure_successful")
+
+        # Show form with current interval value
+        current_interval = entry.data.get(CONF_INTERVAL, DEFAULT_INTERVAL)
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_INTERVAL, default=current_interval): int,
+            }
+        )
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=schema,
+        )
+
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
@@ -72,6 +110,40 @@ class SolplanetConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
+        )
+
+
+class SolplanetOptionsFlow(OptionsFlow):
+    """Handle options flow for Solplanet."""
+
+    def __init__(self, config_entry: ConfigEntry) -> None:
+        """Initialize options flow."""
+        self.config_entry = config_entry
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Manage the options."""
+        if user_input is not None:
+            # Update the config entry data with new interval
+            new_data = {**self.config_entry.data, CONF_INTERVAL: user_input[CONF_INTERVAL]}
+            self.hass.config_entries.async_update_entry(
+                self.config_entry, data=new_data
+            )
+            await self.hass.config_entries.async_reload(self.config_entry.entry_id)
+            return self.async_create_entry(title="", data={})
+
+        # Show form with current interval value
+        current_interval = self.config_entry.data.get(CONF_INTERVAL, DEFAULT_INTERVAL)
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_INTERVAL, default=current_interval): int,
+            }
+        )
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=schema,
         )
 
 
