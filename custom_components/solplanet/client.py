@@ -185,7 +185,14 @@ class GetMeterInfoResponse:
         name: Meter name
         model: Meter model code
         abs: Absolute value flag
-        offset: Offset value
+        abs_offset: Offset value
+        sec_enb: Submeter enabled
+        sec_sn:	Subeter serial number
+        sec_manufactory: Manufacturer name
+        sec_name: Submeter name
+        sec_mod: ?
+        sec_meter_location: Submeter control type
+        sec_addr: Modbus address
 
     """
 
@@ -204,7 +211,14 @@ class GetMeterInfoResponse:
     name: str | None = None
     model: int | None = None
     abs: int | None = None
-    offset: int | None = None
+    abs_offset: int | None = None
+    sec_enb: int | None = None
+    sec_sn: str | None = None
+    sec_manufactory: str | None = None
+    sec_name: str | None = None
+    sec_mod: int | None = None
+    sec_meter_location: int | None = None
+    sec_addr: int | None = None
 
 
 @dataclass
@@ -725,6 +739,12 @@ class SolplanetApi:
         """Get meter data."""
         _LOGGER.debug("Getting meter data")
         response = await self.client.get("getdevdata.cgi?device=3")
+        return self._create_class_from_dict(GetMeterDataResponse, response)
+
+    async def get_submeter_data(self) -> GetMeterDataResponse:
+        """Get submeter data."""
+        _LOGGER.debug("Getting submeter data")
+        response = await self.client.get("getdevdata.cgi?device=3&submeter=1")
         return self._create_class_from_dict(GetMeterDataResponse, response)
 
     async def get_meter_info(self) -> GetMeterInfoResponse:

@@ -6,6 +6,7 @@ MANUFACTURER = "Solplanet"
 INVERTER_IDENTIFIER = "inverter"
 BATTERY_IDENTIFIER = "battery"
 METER_IDENTIFIER = "meter"
+SUBMETER_IDENTIFIER = "submeter"
 
 CONF_INTERVAL = "interval"
 DEFAULT_INTERVAL = 60
@@ -207,3 +208,8 @@ BATTERY_WARNINGS_1 = {
 BATTERY_WARNINGS_2: dict[int, str] = {}
 BATTERY_WARNINGS_3: dict[int, str] = {}
 BATTERY_WARNINGS_4: dict[int, str] = {}
+SUBMETER_LOCATION = {
+    0: "Grid connected inverter",
+    1: "Ev-charger",
+    2: "Load",
+}
