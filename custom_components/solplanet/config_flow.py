@@ -18,7 +18,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .client import SolplanetApi, SolplanetClient
+from .api_adapter import SolplanetApiAdapter
+from .client import SolplanetClient
 from .const import CONF_INTERVAL, DEFAULT_INTERVAL, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -38,7 +39,8 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     """
 
     client = SolplanetClient(data[CONF_HOST], async_get_clientsession(hass))
-    api = SolplanetApi(client)
+    api = await SolplanetApiAdapter.create(client)
+    _LOGGER.info("Detected Solplanet protocol version: %s", api.version)
 
     try:
         await api.get_inverter_info()
