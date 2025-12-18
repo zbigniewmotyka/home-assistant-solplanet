@@ -384,45 +384,6 @@ class BatterySchedule:
         }
 
 
-class SolplanetClient:
-    """Solplanet http client."""
-
-    def __init__(self, host: str, session: ClientSession) -> None:
-        """Create instance of solplanet http client."""
-        self.host = host
-        self.port = 8484
-        self.session = session
-
-    def get_url(self, endpoint: str) -> str:
-        """Get URL for specified endpoint."""
-        return "http://" + self.host + ":" + str(self.port) + "/" + endpoint
-
-    async def get(self, endpoint: str):
-        """Make get request to specified endpoint."""
-        return await self._parse_response(
-            await self.session.get(self.get_url(endpoint))
-        )
-
-    async def post(self, endpoint: str, data: Any):
-        """Make get request to specified endpoint."""
-        return await self._parse_response(
-            await self.session.post(self.get_url(endpoint), json=data)
-        )
-
-    async def _parse_response(self, response: ClientResponse):
-        """Parse response from inverter endpoints."""
-        content = await response.read()
-        _LOGGER.debug(
-            "Received from %s:\nheaders: %s,\ncontent: %s",
-            response.request_info.url,
-            response.raw_headers,
-            base64.b64encode(content),
-        )
-        return json.loads(
-            s=content.strip().decode(response.get_encoding(), "replace"), strict=False
-        )
-
-
 # ============================================================================
 # Response Models (shared by both V1 and V2 APIs)
 # ============================================================================
