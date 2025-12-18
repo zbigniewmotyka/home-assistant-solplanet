@@ -71,37 +71,27 @@ class SolplanetApiAdapter:
     async def _detect_protocol_version(
         client: SolplanetClient,
     ) -> Literal["v1", "v2"]:
-        """Detect which protocol version the inverter supports.
+        """Detect which protocol version the inverter supports."""
 
-        Tries V2 endpoint first, falls back to V1 if V2 fails.
+        # API version configurations: (version_name, endpoint, scheme, port)
+        api_configs = [
+            ("v2", "getdev.cgi?device=2", "https", 443),
+            ("v1", "invinfo.cgi", "http", 8484),
+        ]
 
-        Args:
-            client: HTTP client instance
+        for version, endpoint, scheme, port in api_configs:
+            client.scheme = scheme
+            client.port = port
+            try:
+                _LOGGER.debug("Attempting to detect %s protocol...", version)
+                await client.get(endpoint)
+                _LOGGER.debug("%s protocol detected successfully", version)
+                return version
+            except Exception as e:
+                _LOGGER.debug("%s protocol detection failed: %s", version, e)
 
-        Returns:
-            "v2" if V2 protocol is supported, "v1" otherwise
+        raise RuntimeError("Failed to detect any supported protocol version")
 
-        """
-        # Try V2 endpoint first (getdev.cgi?device=2)
-        try:
-            _LOGGER.debug("Attempting to detect V2 protocol...")
-            await client.get("getdev.cgi?device=2")
-            _LOGGER.debug("V2 protocol detected successfully")
-            return "v2"
-        except Exception as e:
-            _LOGGER.debug("V2 protocol detection failed: %s", e)
-
-        # Fall back to V1 endpoint (invinfo.cgi)
-        try:
-            _LOGGER.debug("Attempting to detect V1 protocol...")
-            await client.get("invinfo.cgi")
-            _LOGGER.debug("V1 protocol detected successfully")
-            return "v1"
-        except Exception as e:
-            _LOGGER.warning("V1 protocol detection also failed: %s", e)
-            # Default to V2 if both fail (backward compatibility)
-            _LOGGER.warning("Defaulting to V2 protocol")
-            return "v2"
 
     @property
     def version(self) -> Literal["v1", "v2"]:

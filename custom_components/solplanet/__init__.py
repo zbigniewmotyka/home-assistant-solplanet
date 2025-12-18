@@ -108,7 +108,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
     """Set up Solplanet from a config entry."""
 
     client = SolplanetClient(entry.data[CONF_HOST], async_get_clientsession(hass))
-    api = await SolplanetApiAdapter.create(client)
+    try:
+        api = await SolplanetApiAdapter.create(client)
+    except RuntimeError as e:
+        raise ConfigEntryNotReady(str(e)) from e
+
     _LOGGER.info("Using Solplanet protocol version: %s", api.version)
     entry.runtime_data = api
 

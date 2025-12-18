@@ -32,26 +32,29 @@ _LOGGER = logging.getLogger(__name__)
 class SolplanetClient:
     """Solplanet HTTP client."""
 
-    def __init__(self, host: str, session: ClientSession) -> None:
+    def __init__(self, host: str, session: ClientSession, scheme: str = "http", port: int = 8484) -> None:
         """Create instance of solplanet http client."""
         self.host = host
-        self.port = 8484
+        self.scheme = scheme
+        self.port = port
         self.session = session
 
     def get_url(self, endpoint: str) -> str:
         """Get URL for specified endpoint."""
-        return "http://" + self.host + ":" + str(self.port) + "/" + endpoint
+        return f"{self.scheme}://{self.host}:{self.port}/{endpoint}"
 
     async def get(self, endpoint: str):
         """Make get request to specified endpoint."""
+        kwargs = {"ssl": False} if self.scheme == "https" else {}
         return await self._parse_response(
-            await self.session.get(self.get_url(endpoint))
+            await self.session.get(self.get_url(endpoint), **kwargs)
         )
 
     async def post(self, endpoint: str, data: Any):
         """Make post request to specified endpoint."""
+        kwargs = {"ssl": False} if self.scheme == "https" else {}
         return await self._parse_response(
-            await self.session.post(self.get_url(endpoint), json=data)
+            await self.session.post(self.get_url(endpoint), json=data, **kwargs)
         )
 
     async def _parse_response(self, response: ClientResponse):
