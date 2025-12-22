@@ -106,7 +106,12 @@ async def async_setup(hass: HomeAssistant, entry: SolplanetConfigEntry) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) -> bool:
     """Set up Solplanet from a config entry."""
 
-    client = SolplanetClient(entry.data[CONF_HOST], async_get_clientsession(hass))
+    client = SolplanetClient(
+        entry.data[CONF_HOST],
+        async_get_clientsession(hass),
+        port=entry.data. get(CONF_PORT, DEFAULT_PORT),
+        verify_ssl=entry.data.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL)
+    )
     api = SolplanetApi(client)
     entry.runtime_data = api
 

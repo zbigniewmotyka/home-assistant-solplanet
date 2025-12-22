@@ -11,6 +11,8 @@ from typing import Any
 from aiohttp import ClientResponse, ClientSession
 
 from .modbus import DataType, ModbusRtuFrameGenerator
+import ssl
+from aiohttp import TCPConnector, ClientSession
 
 __author__ = "Zbigniew Motyka"
 __copyright__ = "Zbigniew Motyka"
@@ -661,26 +663,44 @@ class BatterySchedule:
 class SolplanetClient:
     """Solplanet http client."""
 
-    def __init__(self, host: str, session: ClientSession) -> None:
+    def __init__(
+        self, 
+        host: str, 
+        session: ClientSession,
+        port: int = 443,
+        verify_ssl: bool = False
+    ) -> None:
         """Create instance of solplanet http client."""
         self.host = host
-        self.port = 8484
+        self.port = port
         self.session = session
+        self.verify_ssl = verify_ssl
 
     def get_url(self, endpoint: str) -> str:
         """Get URL for specified endpoint."""
-        return "http://" + self.host + ":" + str(self.port) + "/" + endpoint
+        protocol = "https" if self.port == 443 else "http"
+        return f"{protocol}://{self.host}:{self. port}/{endpoint}"
 
     async def get(self, endpoint: str):
         """Make get request to specified endpoint."""
+        kwargs = {}
+        if not self.verify_ssl and self.port == 443:
+            # Disable SSL verification for self-signed certificates
+            kwargs['ssl'] = False
+        
         return await self._parse_response(
-            await self.session.get(self.get_url(endpoint))
+            await self.session.get(self.get_url(endpoint), **kwargs)
         )
 
-    async def post(self, endpoint: str, data: Any):
-        """Make get request to specified endpoint."""
+    async def post(self, endpoint:  str, data: Any):
+        """Make post request to specified endpoint."""
+        kwargs = {}
+        if not self.verify_ssl and self.port == 443:
+            # Disable SSL verification for self-signed certificates
+            kwargs['ssl'] = False
+        
         return await self._parse_response(
-            await self.session.post(self.get_url(endpoint), json=data)
+            await self.session.post(self.get_url(endpoint), json=data, **kwargs)
         )
 
     async def _parse_response(self, response: ClientResponse):

@@ -3,6 +3,12 @@
 DOMAIN = "solplanet"
 MANUFACTURER = "Solplanet"
 
+# Add these constants to your const.py file
+CONF_PORT = "port"
+CONF_VERIFY_SSL = "verify_ssl"
+DEFAULT_PORT = 443
+DEFAULT_VERIFY_SSL = False
+
 INVERTER_IDENTIFIER = "inverter"
 BATTERY_IDENTIFIER = "battery"
 METER_IDENTIFIER = "meter"

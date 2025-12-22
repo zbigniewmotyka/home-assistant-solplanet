@@ -19,25 +19,28 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .client import SolplanetApi, SolplanetClient
-from .const import CONF_INTERVAL, DEFAULT_INTERVAL, DOMAIN
+from .const import CONF_INTERVAL, CONF_PORT, CONF_VERIFY_SSL, DEFAULT_INTERVAL, DEFAULT_PORT, DEFAULT_VERIFY_SSL, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_HOST): str,
+        vol.Required(CONF_PORT, default=DEFAULT_PORT): cv.port,
+        vol.Required(CONF_VERIFY_SSL, default=DEFAULT_VERIFY_SSL): cv.boolean,
         vol.Required(CONF_INTERVAL, default=DEFAULT_INTERVAL): int,
     }
 )
 
-
 async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
-    """Validate the user input allows us to connect.
-
-    Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
-    """
-
-    client = SolplanetClient(data[CONF_HOST], async_get_clientsession(hass))
+    """Validate the user input allows us to connect."""
+    
+    client = SolplanetClient(
+        data[CONF_HOST],
+        async_get_clientsession(hass),
+        port=data.get(CONF_PORT, DEFAULT_PORT),
+        verify_ssl=data.get(CONF_VERIFY_SSL, DEFAULT_VERIFY_SSL)
+    )
     api = SolplanetApi(client)
 
     try:
