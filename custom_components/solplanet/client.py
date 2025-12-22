@@ -60,12 +60,15 @@ class SolplanetClient:
     async def _parse_response(self, response: ClientResponse):
         """Parse response from inverter endpoints."""
         content = await response.read()
-        _LOGGER.debug(
-            "Received from %s:\nheaders: %s,\ncontent: %s",
-            response.request_info.url,
-            response.raw_headers,
-            base64.b64encode(content),
-        )
+
+        # Only do expensive base64 encoding when debug logging is enabled
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug(
+                "Received from %s:\nheaders: %s,\ncontent: %s",
+                response.request_info.url,
+                response.raw_headers,
+                base64.b64encode(content),
+            )
         return json.loads(
             s=content.strip().decode(response.get_encoding(), "replace"), strict=False
         )
