@@ -942,8 +942,8 @@ class SolplanetApiV2(ModbusApiMixin):
         battery_info = await self.get_battery_info(sn)
         request = SetBatteryConfigRequest(
             value=SetBatteryConfigValueRequest(
-                type=battery_info.type,
-                mod_r=mode.value,
+                type=mode.type,
+                mod_r=mode.mod_r,
                 sn=sn,
                 discharge_max=battery_info.discharge_max,
                 charge_max=battery_info.charge_max,
@@ -952,7 +952,7 @@ class SolplanetApiV2(ModbusApiMixin):
                 num=battery_info.num,
             )
         )
-        await self.client.post("setdev.cgi", request)
+        await self.client.post("setting.cgi", request)
 
     async def set_battery_soc_min(self, sn: str, soc_min: int) -> None:
         """Set battery minimum SOC."""
@@ -970,7 +970,7 @@ class SolplanetApiV2(ModbusApiMixin):
                 num=battery_info.num,
             )
         )
-        await self.client.post("setdev.cgi", request)
+        await self.client.post("setting.cgi", request)
 
     async def set_battery_soc_max(self, sn: str, soc_max: int) -> None:
         """Set battery maximum SOC."""
@@ -988,7 +988,7 @@ class SolplanetApiV2(ModbusApiMixin):
                 num=battery_info.num,
             )
         )
-        await self.client.post("setdev.cgi", request)
+        await self.client.post("setting.cgi", request)
 
     async def get_schedule(self) -> dict:
         """Get battery schedule configuration."""
@@ -1013,7 +1013,7 @@ class SolplanetApiV2(ModbusApiMixin):
             pout=pout if pout is not None else current["Pout"],
         )
         request = SetScheduleRequest(value=schedule)
-        await self.client.post("setdev.cgi", request)
+        await self.client.post("setting.cgi", request)
 
     async def set_schedule_pin(self, pin: int) -> None:
         """Set battery schedule pin configuration."""
@@ -1048,7 +1048,7 @@ class SolplanetApiV2(ModbusApiMixin):
             slots, pin=current["Pin"], pout=current["Pout"]
         )
         request = SetScheduleRequest(value=schedule)
-        await self.client.post("setdev.cgi", request)
+        await self.client.post("setting.cgi", request)
 
     def _create_class_from_dict(self, cls, dict):
         """Create dataclass instance from dict."""
