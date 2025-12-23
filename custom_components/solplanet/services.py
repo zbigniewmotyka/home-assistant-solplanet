@@ -16,23 +16,23 @@ _LOGGER = logging.getLogger(__name__)
 async def get_isn_from_target(hass: HomeAssistant, target: dict) -> list[str]:
     """Get ISNs from target entity_ids or device_ids."""
     isns = set()
-    
+
     # Handle entity_ids
     if "entity_id" in target:
         entity_reg = er.async_get(hass)
         entity_ids = target["entity_id"] if isinstance(target["entity_id"], list) else [target["entity_id"]]
-            
+
         for entity_id in entity_ids:
             if entry := entity_reg.async_get(entity_id):
                 parts = entry.unique_id.split('_')
                 if len(parts) > 2:
                     isns.add(parts[2])
-                
+
     # Handle device_ids
     if "device_id" in target:
         device_reg = dr.async_get(hass)
         device_ids = target["device_id"] if isinstance(target["device_id"], list) else [target["device_id"]]
-            
+
         for device_id in device_ids:
             if device := device_reg.async_get(device_id):
                 for identifier in device.identifiers:
@@ -57,7 +57,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         isns = await get_isn_from_target(hass, target)
         if not isns:
             raise vol.Invalid("No valid entities or devices found")
-            
+
         processed = False
         for isn in isns:
             for data in hass.data[DOMAIN].values():
@@ -66,29 +66,29 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     try:
                         # Get current schedule
                         current_schedule = coordinator.data[BATTERY_IDENTIFIER][isn]["schedule"]["slots"]
-                        
+
                         # Create new slot
                         slot = ScheduleSlot.from_time(
                             start=f"{call.data['start_hour']:02d}:{call.data['start_minute']:02d}",
                             duration=call.data["duration"],
                             mode=call.data["mode"]
                         )
-                        
+
                         # Get existing slots for the day
                         new_slots = dict(current_schedule)
                         day_slots = new_slots.get(call.data["day"], [])
-                        
+
                         if len(day_slots) >= 6:
                             raise vol.Invalid("Cannot add more than 6 slots per day")
-                            
+
                         day_slots.append(slot)
                         ScheduleSlot.validate_slots(day_slots)  # This will raise ValueError for validation issues
-                        
+
                         new_slots[call.data["day"]] = day_slots
                         await coordinator.set_battery_schedule_slots(isn, new_slots)
                         processed = True
                         break
-                        
+
                     except ValueError as err:
                         # Handle validation errors only (overlaps, duration, midnight crossing)
                         raise vol.Invalid(str(err)) from err
@@ -96,7 +96,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                         # Handle specific API/network errors
                         _LOGGER.error("Failed to access inverter: %s", err)
                         raise vol.Invalid(f"Communication error: {err}") from err
-                    
+
         if not processed:
             raise vol.Invalid(f"No valid battery coordinator found for ISNs {isns}")
 
@@ -111,7 +111,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         isns = await get_isn_from_target(hass, target)
         if not isns:
             raise vol.Invalid("No valid entities or devices found")
-            
+
         processed = False
         for isn in isns:
             for data in hass.data[DOMAIN].values():
@@ -119,18 +119,18 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 if isn in coordinator.data[BATTERY_IDENTIFIER]:
                     # Get current schedule
                     current_schedule = coordinator.data[BATTERY_IDENTIFIER][isn]["schedule"]["slots"]
-                    
+
                     if call.data["day"] == "all":
                         new_slots = {day: [] for day in BatterySchedule.DAYS}
                     else:
                         # Keep other days unchanged
                         new_slots = dict(current_schedule)
                         new_slots[call.data["day"]] = []
-                    
+
                     await coordinator.set_battery_schedule_slots(isn, new_slots)
                     processed = True
                     break
-                    
+
         if not processed:
             raise vol.Invalid(f"No valid battery coordinator found for ISNs {isns}")
 
@@ -151,9 +151,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     )
 
     hass.services.async_register(
-        DOMAIN, 
-        "clear_schedule", 
-        clear_schedule, 
+        DOMAIN,
+        "clear_schedule",
+        clear_schedule,
         schema=vol.Schema({
             vol.Optional("entity_id"): vol.Any(str, [str]),
             vol.Optional("device_id"): vol.Any(str, [str]),
