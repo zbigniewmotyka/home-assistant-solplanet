@@ -372,7 +372,7 @@ class BatterySchedule:
         }
 
     @staticmethod
-    def encode_schedule(slots: dict[str, list[ScheduleSlot]], pin: int = 5000, pout: int = 5000) -> dict:
+    def encode_schedule(slots: dict[str, list[ScheduleSlot]], pin: int = 0, pout: int = 0) -> dict:
         """Encode slots into raw schedule."""
         # Validate slots for each day
         for day_slots in slots.values():
@@ -1001,8 +1001,8 @@ class SolplanetApiV2(ModbusApiMixin):
         return {
             "raw": raw_response,  # Store raw API response as-is
             "slots": slots,  # Store decoded schedule
-            "Pin": raw_response.get("Pin", 5000),
-            "Pout": raw_response.get("Pout", 5000),
+            "Pin": raw_response.get("Pin", 0),
+            "Pout": raw_response.get("Pout", 0),
         }
 
     async def set_schedule_power(

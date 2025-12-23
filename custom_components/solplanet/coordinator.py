@@ -64,8 +64,8 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
                     battery_schedules = [{
                         "raw": raw_response.get("raw", {}),
                         "slots": raw_response.get("slots", {}),
-                        "Pin": raw_response.get("Pin", 5000),
-                        "Pout": raw_response.get("Pout", 5000)
+                        "Pin": raw_response.get("Pin", 0),
+                        "Pout": raw_response.get("Pout", 0)
                     } for raw_response in battery_schedules_raw]
 
                     _LOGGER.debug("Battery schedules: %s", battery_schedules)
@@ -156,8 +156,8 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
             current = await self.__api.get_schedule()
             raw_schedule = BatterySchedule.encode_schedule(
                 slots,
-                pin=current["raw"].get("Pin", 5000),
-                pout=current["raw"].get("Pout", 5000)
+                pin=current["raw"].get("Pin", 0),
+                pout=current["raw"].get("Pout", 0)
             )
             _LOGGER.debug("Encoded schedule: %s", raw_schedule)
             await self.__api.set_schedule_slots(raw_schedule)
