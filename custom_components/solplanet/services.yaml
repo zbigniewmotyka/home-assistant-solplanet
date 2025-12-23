@@ -1,5 +1,5 @@
-set_schedule_slot:
-  name: Set Schedule Slot
+set_schedule_slots:
+  name: Set Schedule Slots
   description: Set a charging/discharging schedule slot for a specific battery
   target:
     entity:

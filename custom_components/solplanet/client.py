@@ -1026,30 +1026,9 @@ class SolplanetApiV2(ModbusApiMixin):
         """Set battery schedule pout configuration."""
         await self.set_schedule_power(pout=pout)
 
-    async def set_schedule_slot(
-        self,
-        slot_id: int,
-        start_hour: int,
-        start_minute: int,
-        end_hour: int,
-        end_minute: int,
-        power: int,
-        enabled: bool,
-    ) -> None:
-        """Set battery schedule slot configuration."""
-        current = await self.get_schedule()
-        slots = current["slots"]
-        slots[slot_id] = ScheduleSlot(
-            start_hour=start_hour,
-            start_minute=start_minute,
-            end_hour=end_hour,
-            end_minute=end_minute,
-            power=power,
-            enabled=enabled,
-        )
-        schedule = BatterySchedule.encode_schedule(
-            slots, pin=current["Pin"], pout=current["Pout"]
-        )
+    async def set_schedule_slots(self, schedule: dict) -> None:
+        """Set battery schedule."""
+        _LOGGER.debug("Setting battery schedule: %s", schedule)
         request = SetScheduleRequest(value=schedule)
         await self.client.post("setting.cgi", request)
 

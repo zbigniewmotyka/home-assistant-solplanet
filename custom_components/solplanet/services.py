@@ -46,8 +46,8 @@ async def get_isn_from_target(hass: HomeAssistant, target: dict) -> list[str]:
 async def async_setup_services(hass: HomeAssistant) -> None:
     """Set up services for Solplanet integration."""
 
-    async def set_schedule_slot(call: ServiceCall) -> None:
-        """Handle set_schedule_slot service."""
+    async def set_schedule_slots(call: ServiceCall) -> None:
+        """Handle set_schedule_slots service."""
         target = call.target if hasattr(call, 'target') else {}
         if 'entity_id' in call.data:
             target['entity_id'] = call.data['entity_id']
@@ -136,9 +136,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
     # Service schemas stay the same
     hass.services.async_register(
-        DOMAIN, 
-        "set_schedule_slot", 
-        set_schedule_slot, 
+        DOMAIN,
+        "set_schedule_slots",
+        set_schedule_slots,
         schema=vol.Schema({
             vol.Optional("entity_id"): vol.Any(str, [str]),
             vol.Optional("device_id"): vol.Any(str, [str]),
