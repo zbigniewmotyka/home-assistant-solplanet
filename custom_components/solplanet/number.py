@@ -103,6 +103,19 @@ def create_battery_entites_description(
             native_unit_of_measurement=UnitOfPower.WATT,
             callback=lambda value: coordinator.set_battery_schedule_pout(isn, int(value)),
         ),
+        SolplanetNumberEntityDescription(
+            key=f"{isn}_led_brightness",
+            name="LED Brightness",
+            icon="mdi:brightness-6",
+            data_field_device_type=BATTERY_IDENTIFIER,
+            data_field_data_type="more_settings",
+            data_field_path=["led_brightness"],
+            native_min_value=0,
+            native_max_value=100,
+            native_step=1,
+            native_unit_of_measurement=PERCENTAGE,
+            callback=lambda value: coordinator.set_battery_led_brightness(int(value)),
+        ),
     ]
 
 

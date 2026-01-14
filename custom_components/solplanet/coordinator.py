@@ -13,6 +13,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .api_adapter import SolplanetApiAdapter
 from .client import BatterySchedule, BatteryWorkMode, BatteryWorkModes, ScheduleSlot
 from .const import BATTERY_IDENTIFIER, DOMAIN, INVERTER_IDENTIFIER, METER_IDENTIFIER
+from .modbus import DataType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,10 +22,15 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
     """Solplanet inverter coordinator."""
 
     def __init__(
-        self, hass: HomeAssistant, api: SolplanetApiAdapter, update_interval: int
+        self,
+        hass: HomeAssistant,
+        api: SolplanetApiAdapter,
+        config_entry_id: str,
+        update_interval: int,
     ) -> None:
         """Create instance of solplanet coordinator."""
         self.__api = api
+        self.config_entry_id = config_entry_id
 
         # Some dongles/inverters are very sensitive to concurrent requests.
         # Serialize update cycles to reduce timeouts/flapping.
@@ -77,11 +83,20 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
 
             # Batteries (V2 only)
             battery_payload: dict[str, dict] = {}
-            prev_batteries: dict = previous.get(BATTERY_IDENTIFIER, {}) if isinstance(previous, dict) else {}
+            prev_batteries: dict = (
+                previous.get(BATTERY_IDENTIFIER, {}) if isinstance(previous, dict) else {}
+            )
 
             try:
-                battery_isns: list[str] = [x.isn for x in inverters_info.inv if x.isStorage() and x.isn]
+                battery_isns: list[str] = [
+                    x.isn for x in inverters_info.inv if x.isStorage() and x.isn
+                ]
                 schedule: dict | None = None
+
+                # Battery "More Settings" are controlled via Modbus RTU over `fdbg.cgi` using holding-register
+                # offsets: 1500 power, 1501 sleep, 1502 LED color index, 1503 LED brightness.
+                # The Modbus helper expects full holding register numbers (40001 + offset).
+                more_settings: dict | None = None
 
                 if battery_isns:
                     # getdefine.cgi is global (no sn parameter) so fetch it once
@@ -89,6 +104,30 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
                         schedule = await self.__api.get_schedule()
                     except Exception as err:  # noqa: BLE001
                         _LOGGER.debug("Failed fetching schedule: %s", err, exc_info=True)
+
+                    # Read the 4-register block once and apply to all battery entries.
+                    try:
+                        regs = await self.__api.modbus_read_holding_registers(
+                            data_type=DataType.U16,
+                            device_address=3,
+                            register_address=41501,  # 40001 + 1500
+                            register_count=4,
+                        )
+                        if isinstance(regs, list) and len(regs) >= 4:
+                            # regs are [power, sleep_flag, led_color, led_brightness]
+                            power_reg = int(regs[0] or 0)
+                            sleep_reg = int(regs[1] or 0)
+                            color_reg = int(regs[2] or 0)
+                            brightness_reg = int(regs[3] or 0)
+                            more_settings = {
+                                "power_on": power_reg == 1,
+                                # Sleep flag semantics: 0 = enabled, 1 = disabled
+                                "sleep_enabled": sleep_reg == 0,
+                                "led_color_index": color_reg,
+                                "led_brightness": brightness_reg,
+                            }
+                    except Exception as err:  # noqa: BLE001
+                        _LOGGER.debug("Failed reading modbus More Settings: %s", err, exc_info=True)
 
                     for isn in battery_isns:
                         try:
@@ -98,13 +137,25 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
                                 "data": data,
                                 "info": info,
                                 "work_modes": {
-                                    "all": BatteryWorkModes().get_all_modes(info.type, info.mod_r),
-                                    "selected": BatteryWorkModes().get_mode(info.type, info.mod_r),
+                                    "all": BatteryWorkModes().get_all_modes(
+                                        info.type, info.mod_r
+                                    ),
+                                    "selected": BatteryWorkModes().get_mode(
+                                        info.type, info.mod_r
+                                    ),
                                 },
-                                "schedule": schedule or prev_batteries.get(isn, {}).get("schedule", {}),
+                                "schedule": schedule
+                                or prev_batteries.get(isn, {}).get("schedule", {}),
+                                "more_settings": more_settings
+                                or prev_batteries.get(isn, {}).get("more_settings", {}),
                             }
                         except Exception as err:  # noqa: BLE001
-                            _LOGGER.debug("Failed fetching battery data for %s: %s", isn, err, exc_info=True)
+                            _LOGGER.debug(
+                                "Failed fetching battery data for %s: %s",
+                                isn,
+                                err,
+                                exc_info=True,
+                            )
                             if isn in prev_batteries:
                                 battery_payload[isn] = prev_batteries[isn]
                             else:
@@ -112,8 +163,11 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
                                 battery_payload[isn] = {
                                     "data": None,
                                     "info": prev_batteries.get(isn, {}).get("info"),
-                                    "work_modes": prev_batteries.get(isn, {}).get("work_modes", {"all": [], "selected": None}),
+                                    "work_modes": prev_batteries.get(isn, {}).get(
+                                        "work_modes", {"all": [], "selected": None}
+                                    ),
                                     "schedule": schedule or {},
+                                    "more_settings": more_settings or {},
                                 }
             except NotImplementedError:
                 _LOGGER.info("Battery operations not supported (V1 protocol)")
@@ -142,6 +196,36 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
                 BATTERY_IDENTIFIER: battery_payload,
                 METER_IDENTIFIER: meter_payload,
             }
+
+    async def _write_battery_more_setting(self, register_offset: int, value: int) -> None:
+        """Write a battery "More Settings" register via Modbus (function 0x10)."""
+        try:
+            await self.__api.modbus_write_multiple_holding_registers(
+                device_address=3,
+                register_address=40001 + register_offset,
+                values=[value],
+            )
+            await self.async_refresh()
+        except NotImplementedError as err:
+            raise HomeAssistantError(
+                "Modbus operations are not supported with V1 protocol"
+            ) from err
+
+    async def set_battery_power(self, on: bool) -> None:
+        """Set battery power (offset 1500). 1=on, 0=shutdown."""
+        await self._write_battery_more_setting(register_offset=1500, value=1 if on else 0)
+
+    async def set_battery_sleep_enabled(self, enabled: bool) -> None:
+        """Set battery sleep enabled flag (offset 1501). 0=enabled, 1=disabled."""
+        await self._write_battery_more_setting(register_offset=1501, value=0 if enabled else 1)
+
+    async def set_battery_led_color_index(self, index: int) -> None:
+        """Set battery LED color index (offset 1502)."""
+        await self._write_battery_more_setting(register_offset=1502, value=int(index))
+
+    async def set_battery_led_brightness(self, brightness: int) -> None:
+        """Set battery LED brightness percent (offset 1503)."""
+        await self._write_battery_more_setting(register_offset=1503, value=int(brightness))
 
     async def set_battery_work_mode(self, sn: str, mode: BatteryWorkMode) -> None:
         """Set battery work mode."""

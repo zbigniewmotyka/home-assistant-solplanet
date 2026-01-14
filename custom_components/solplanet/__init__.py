@@ -31,6 +31,7 @@ PLATFORMS: list[Platform] = [
     Platform.NUMBER,
     Platform.SELECT,
     Platform.BINARY_SENSOR,
+    Platform.SWITCH,
 ]
 CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
 _LOGGER = logging.getLogger(__name__)
@@ -68,7 +69,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
 
     device_registry = dr.async_get(hass)
 
-    coordinator = SolplanetDataUpdateCoordinator(hass, api, entry.data[CONF_INTERVAL])
+    coordinator = SolplanetDataUpdateCoordinator(
+        hass=hass,
+        api=api,
+        config_entry_id=entry.entry_id,
+        update_interval=entry.data[CONF_INTERVAL],
+    )
     hass.data[DOMAIN][entry.entry_id]["coordinator"] = coordinator
     await coordinator.async_config_entry_first_refresh()
 

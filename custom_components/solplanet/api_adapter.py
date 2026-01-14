@@ -269,7 +269,7 @@ class SolplanetApiAdapter:
         device_address: int,
         register_address: int,
         register_count: int = 1,
-    ) -> dict | int | str | None:
+    ) -> dict | int | str | list[int | None] | None:
         """Read modbus holding registers."""
         return await self._api.modbus_read_holding_registers(
             data_type, device_address, register_address, register_count
@@ -288,13 +288,28 @@ class SolplanetApiAdapter:
             data_type, device_address, register_address, value, dry_run
         )
 
+    async def modbus_write_multiple_holding_registers(
+        self,
+        device_address: int,
+        register_address: int,
+        values: list[int],
+        dry_run: bool = False,
+    ) -> dict | str | None:
+        """Write multiple modbus holding registers (function 0x10)."""
+        return await self._api.modbus_write_multiple_holding_registers(
+            device_address=device_address,
+            register_address=register_address,
+            values=values,
+            dry_run=dry_run,
+        )
+
     async def modbus_read_input_registers(
         self,
         data_type: DataType,
         device_address: int,
         register_address: int,
         register_count: int = 1,
-    ) -> dict | int | str | None:
+    ) -> dict | int | str | list[int | None] | None:
         """Read modbus input registers."""
         return await self._api.modbus_read_input_registers(
             data_type, device_address, register_address, register_count

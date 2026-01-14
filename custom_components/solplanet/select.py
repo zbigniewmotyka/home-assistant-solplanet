@@ -80,6 +80,39 @@ def create_battery_entites_description(
     coordinator: SolplanetDataUpdateCoordinator, isn: str
 ) -> list[SolplanetSelectEntityDescription]:
     """Create entities for battery."""
+    LED_COLOR_MAP: dict[int, dict[str, str]] = {
+        1: {"name": "Cyan", "hex": "#67F9FD"},
+        2: {"name": "Mint", "hex": "#69F9CB"},
+        3: {"name": "Lime", "hex": "#6CF86C"},
+        4: {"name": "Pink", "hex": "#F3B0FC"},
+        5: {"name": "Purple", "hex": "#C2B2FB"},
+    }
+
+    def _format_led_color_label(index: int) -> str:
+        entry = LED_COLOR_MAP.get(index)
+        if entry:
+            return entry["name"]
+        return f"Index {index}"
+
+    def _get_led_color_options() -> list[SolplanetSelectOption]:
+        # The device exposes a fixed LED palette (indices 1-5). Include the current value
+        # if it ever reports something outside the known range.
+        current = (
+            coordinator.data.get(BATTERY_IDENTIFIER, {})
+            .get(isn, {})
+            .get("more_settings", {})
+            .get("led_color_index")
+        )
+
+        indices = set(LED_COLOR_MAP.keys())
+        if isinstance(current, int):
+            indices.add(current)
+
+        return [
+            SolplanetSelectOption(label=_format_led_color_label(i), value=i)
+            for i in sorted(indices)
+        ]
+
     return [
         SolplanetSelectEntityDescription(
             key=f"{isn}_work_mode",
@@ -95,6 +128,27 @@ def create_battery_entites_description(
             callback=lambda option: coordinator.set_battery_work_mode(
                 isn, option.value
             ),
+        ),
+        SolplanetSelectEntityDescription(
+            key=f"{isn}_led_color",
+            name="LED Color",
+            icon="mdi:palette",
+            unique_id_suffix="led_color",
+            data_field_device_type=BATTERY_IDENTIFIER,
+            data_field_data_type="more_settings",
+            data_field_path=["led_color_index"],
+            # Entity expects a string option; we store int in value and use label for display.
+            get_options=_get_led_color_options,
+            callback=lambda option: coordinator.set_battery_led_color_index(int(option.value)),
+            data_field_value_mapper=lambda v: _format_led_color_label(int(v)) if v is not None else None,
+            attributes_fn=lambda ms: {
+                "index": ms.get("led_color_index") if isinstance(ms, dict) else None,
+                "hex": (
+                    LED_COLOR_MAP.get(ms.get("led_color_index"), {}).get("hex")
+                    if isinstance(ms, dict)
+                    else None
+                ),
+            },
         ),
     ]
 

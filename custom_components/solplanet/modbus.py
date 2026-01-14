@@ -66,6 +66,36 @@ class ModbusRtuFrameGenerator:
         encoded_value = self.encode_request_data(value, data_type)
         return self._generate_frame(device_id, 0x06, register_offset, encoded_value)
 
+    def generate_write_multiple_holding_registers_frame(
+        self, device_id: int, register_address: int, values: list[int]
+    ) -> str:
+        """Generate Modbus RTU frame for Write Multiple Holding Registers (Function Code: 0x10)."""
+        if not values:
+            raise ValueError("Values must not be empty.")
+        if not (0 <= device_id <= 0xFF):
+            raise ValueError("Invalid device ID (0-255).")
+
+        register_offset = register_address - 40001
+        if not (0 <= register_offset <= 0xFFFF):
+            raise ValueError("Invalid register offset (0-65535).")
+
+        quantity = len(values)
+        if not (1 <= quantity <= 0x007B):  # Modbus spec max 123 registers
+            raise ValueError("Invalid register quantity (1-123).")
+
+        for v in values:
+            if not (0 <= v <= 0xFFFF):
+                raise ValueError("Invalid register value (0-65535).")
+
+        byte_count = quantity * 2
+        frame = struct.pack(">B B H H B", device_id, 0x10, register_offset, quantity, byte_count)
+        frame += b"".join(struct.pack(">H", v) for v in values)
+
+        crc = self._calculate_crc(frame)
+        frame += struct.pack("<H", crc)  # Add CRC in little-endian order
+
+        return frame.hex()
+
     def _generate_frame(
         self, device_id: int, function_code: int, register_offset: int, value: int
     ) -> str:
@@ -87,7 +117,7 @@ class ModbusRtuFrameGenerator:
 
     def decode_response(
         self, response_hex: str, data_type: DataType
-    ) -> dict | int | str | None:
+    ) -> dict | int | str | list[int | None] | None:
         """Decode Modbus RTU response based on function code and data type."""
         response = bytes.fromhex(response_hex)
 
@@ -101,7 +131,9 @@ class ModbusRtuFrameGenerator:
             return self._decode_register_response(response, data_type)
         if function_code == 0x06:
             return self._decode_write_single_holding_register_response(response)
-        if function_code in [0x83, 0x84, 0x86]:
+        if function_code == 0x10:
+            return self._decode_write_multiple_holding_registers_response(response)
+        if function_code in [0x83, 0x84, 0x86, 0x90]:
             return self._decode_error_response(response)
 
         raise ValueError("Unsupported function code in response.")
@@ -136,12 +168,21 @@ class ModbusRtuFrameGenerator:
 
     def _decode_register_response(
         self, response: bytes, data_type: DataType
-    ) -> int | str | None:
+    ) -> int | str | list[int | None] | None:
         """Decode Modbus RTU response for Read Holding Register and Read Input Register functions."""
         device_id, function_code, byte_count = struct.unpack(">B B B", response[:3])
         data = response[3:-2]
 
         self._verify_crc(response)
+
+        # If the caller requested U16 and multiple registers were returned, decode the full list.
+        # This is useful for reverse engineering and block reads (e.g. LED settings).
+        if data_type == DataType.U16 and len(data) > 2 and (len(data) % 2) == 0:
+            values: list[int | None] = []
+            for i in range(0, len(data), 2):
+                raw = struct.unpack(">H", data[i : i + 2])[0]
+                values.append(self._decode_value(raw, data_type))
+            return values
 
         # Handle different data types based on length requirements
         if data_type in [DataType.S32, DataType.U32, DataType.B32]:
@@ -199,6 +240,26 @@ class ModbusRtuFrameGenerator:
             return result
 
         raise ValueError(f"Unsupported data type: {data_type}")
+
+    def _decode_write_multiple_holding_registers_response(
+        self, response: bytes
+    ) -> dict[str, int]:
+        """Decode Modbus RTU response for Write Multiple Holding Registers (Function Code: 0x10)."""
+        if len(response) != 8:
+            raise ValueError("Invalid response length.")
+
+        self._verify_crc(response)
+
+        device_id, function_code, register_address, quantity = struct.unpack(
+            ">B B H H", response[:6]
+        )
+
+        return {
+            "device_id": device_id,
+            "function_code": function_code,
+            "register_address": register_address,
+            "quantity": quantity,
+        }
 
     def _decode_error_response(self, response: bytes) -> dict[str, int]:
         """Decode Modbus RTU error response."""

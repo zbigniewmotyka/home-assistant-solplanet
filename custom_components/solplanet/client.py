@@ -144,7 +144,7 @@ class ModbusApiMixin:
         device_address: int,
         register_address: int,
         register_count: int = 1,
-    ) -> dict | int | str | None:
+    ) -> dict | int | str | list[int | None] | None:
         """Read modbus holding registers."""
         frame = ModbusRtuFrameGenerator().generate_read_holding_register_frame(
             device_id=device_address,
@@ -161,7 +161,7 @@ class ModbusApiMixin:
         value: int,
         dry_run: bool = False,
     ) -> dict | int | str | None:
-        """Write modbus single holding register."""
+        """Write modbus single holding register (function 0x06)."""
         frame = ModbusRtuFrameGenerator().generate_write_single_holding_register_frame(
             device_id=device_address,
             register_address=register_address,
@@ -181,13 +181,43 @@ class ModbusApiMixin:
             return frame
         return await self._send_modbus(frame=frame, data_type=data_type)
 
+    async def modbus_write_multiple_holding_registers(
+        self,
+        device_address: int,
+        register_address: int,
+        values: list[int],
+        dry_run: bool = False,
+    ) -> dict | str | None:
+        """Write modbus multiple holding registers (function 0x10).
+
+        The official app uses 0x10 even for single-register writes for the battery "More Settings"
+        (power, sleep, LED color, LED brightness).
+        """
+        frame = ModbusRtuFrameGenerator().generate_write_multiple_holding_registers_frame(
+            device_id=device_address,
+            register_address=register_address,
+            values=values,
+        )
+        _LOGGER.debug(
+            "Generated frame for write multiple holding registers (device_address: %s, register_address: %s, values: %s, dry_run: %s): %s",
+            device_address,
+            register_address,
+            values,
+            dry_run,
+            frame,
+        )
+        if dry_run:
+            return frame
+        # Decode will return an ack dict for 0x10
+        return await self._send_modbus(frame=frame, data_type=DataType.U16)
+
     async def modbus_read_input_registers(
         self,
         data_type: DataType,
         device_address: int,
         register_address: int,
         register_count: int = 1,
-    ) -> dict | int | str | None:
+    ) -> dict | int | str | list[int | None] | None:
         """Read modbus input registers."""
         frame = ModbusRtuFrameGenerator().generate_read_input_register_frame(
             device_id=device_address,
