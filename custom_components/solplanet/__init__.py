@@ -140,11 +140,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
     for battery_isn in coordinator.data[BATTERY_IDENTIFIER]:
         battery_info = coordinator.data[BATTERY_IDENTIFIER][battery_isn]["info"]
 
+        # Battery endpoint (device=4) reports `isn` as the inverter serial.
+        # Use the nested battery part number as the battery serial when available.
+        battery_serial = (
+            battery_info.battery.partno
+            if battery_info.battery and battery_info.battery.partno
+            else battery_info.isn
+        )
+
         device_registry.async_get_or_create(
             config_entry_id=entry.entry_id,
+            # Keep identifiers stable (and aligned with `device_info`) to avoid orphaning entities.
             identifiers={(DOMAIN, f"{BATTERY_IDENTIFIER}_{battery_info.isn or ''}")},
-            name=f"Battery ({battery_info.isn})",
-            serial_number=battery_info.isn,
+            name=f"Battery ({battery_serial})",
+            serial_number=battery_serial,
             sw_version=battery_info.battery.softwarever if battery_info.battery else "",
             hw_version=battery_info.battery.hardwarever if battery_info.battery else "",
         )
