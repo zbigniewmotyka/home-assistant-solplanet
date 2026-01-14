@@ -19,6 +19,7 @@ from .const import (
     CONF_INTERVAL,
     DEFAULT_INTERVAL,
     DOMAIN,
+    DONGLE_IDENTIFIER,
     INVERTER_IDENTIFIER,
     MANUFACTURER,
     METER_IDENTIFIER,
@@ -32,6 +33,7 @@ PLATFORMS: list[Platform] = [
     Platform.SELECT,
     Platform.BINARY_SENSOR,
     Platform.SWITCH,
+    Platform.BUTTON,
 ]
 CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
 _LOGGER = logging.getLogger(__name__)
@@ -77,6 +79,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
     )
     hass.data[DOMAIN][entry.entry_id]["coordinator"] = coordinator
     await coordinator.async_config_entry_first_refresh()
+
+    # Dongle (V2 only): create a dedicated device entry for diagnostics and actions.
+    for dongle_id in coordinator.data.get(DONGLE_IDENTIFIER, {}):
+        dongle = coordinator.data[DONGLE_IDENTIFIER][dongle_id].get("data", {}) or {}
+        device_registry.async_get_or_create(
+            config_entry_id=entry.entry_id,
+            identifiers={(DOMAIN, f"{DONGLE_IDENTIFIER}_{dongle_id}")},
+            name=f"{dongle.get('nam') or 'Solplanet Dongle'} ({dongle_id})",
+            manufacturer=dongle.get("brd") or dongle.get("muf") or MANUFACTURER,
+            model=dongle.get("mod") or dongle.get("hw") or "Dongle",
+            serial_number=dongle.get("psn") or dongle_id,
+            hw_version=dongle.get("hw") or "",
+            sw_version=dongle.get("sw") or "",
+        )
 
     for inverter_isn in coordinator.data[INVERTER_IDENTIFIER]:
         inverter_info = coordinator.data[INVERTER_IDENTIFIER][inverter_isn]["info"]
@@ -124,9 +140,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
             model=meter_info.name,
         )
 
-    if len(coordinator.data[INVERTER_IDENTIFIER]) == 0:
-        raise ConfigEntryNotReady("No device detected, inverter in sleep mode")
-
+    # Do not block setup if the inverter is sleeping or temporarily unreachable.
+    # Entities are added regardless and will show `unknown` state until data is available.
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True

@@ -12,7 +12,13 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .api_adapter import SolplanetApiAdapter
 from .client import BatterySchedule, BatteryWorkMode, BatteryWorkModes, ScheduleSlot
-from .const import BATTERY_IDENTIFIER, DOMAIN, INVERTER_IDENTIFIER, METER_IDENTIFIER
+from .const import (
+    BATTERY_IDENTIFIER,
+    DOMAIN,
+    DONGLE_IDENTIFIER,
+    INVERTER_IDENTIFIER,
+    METER_IDENTIFIER,
+)
 from .modbus import DataType
 
 _LOGGER = logging.getLogger(__name__)
@@ -56,6 +62,48 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
         """
         async with self._update_lock:
             previous: dict = self.data or {}
+
+            # Dongle diagnostics (V2 only). These endpoints are served by the dongle itself.
+            prev_dongles: dict = (
+                previous.get(DONGLE_IDENTIFIER, {}) if isinstance(previous, dict) else {}
+            )
+            dongle_payload: dict[str, dict] = prev_dongles
+
+            if self.__api.version == "v2":
+                try:
+                    dongle_info = await self.__api.client.get("getdev.cgi")
+                    dongle_id = (
+                        dongle_info.get("psn")
+                        or dongle_info.get("ethmac")
+                        or dongle_info.get("wlanmac")
+                        or "unknown"
+                    )
+
+                    # Network info (LAN/WLAN). The sample shows `info=2` for LAN.
+                    try:
+                        network_info = await self.__api.client.get("wlanget.cgi?info=2")
+                    except Exception as err:  # noqa: BLE001
+                        _LOGGER.debug("Failed fetching dongle network info: %s", err, exc_info=True)
+                        network_info = prev_dongles.get(dongle_id, {}).get("network")
+
+                    # Warnings (device=1). Observed behavior: 404 means no warnings.
+                    warnings: dict | None = None
+                    try:
+                        warnings = await self.__api.client.get("getdevdata.cgi?device=1")
+                    except Exception as err:  # noqa: BLE001
+                        # Keep it lightweight: treat failures (including 404) as "no data".
+                        _LOGGER.debug("Failed fetching dongle warnings: %s", err, exc_info=True)
+                        warnings = prev_dongles.get(dongle_id, {}).get("warnings")
+
+                    dongle_payload = {
+                        dongle_id: {
+                            "data": dongle_info,
+                            "network": network_info,
+                            "warnings": warnings,
+                        }
+                    }
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.debug("Failed fetching dongle info: %s", err, exc_info=True)
 
             try:
                 _LOGGER.debug("Updating inverters data")
@@ -231,6 +279,7 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
 
             _LOGGER.debug("Inverters data updated")
             return {
+                DONGLE_IDENTIFIER: dongle_payload,
                 INVERTER_IDENTIFIER: inverter_payload,
                 BATTERY_IDENTIFIER: battery_payload,
                 METER_IDENTIFIER: meter_payload,
@@ -251,6 +300,42 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
             raise HomeAssistantError(
                 "Modbus operations are not supported with V1 protocol"
             ) from err
+
+    async def dongle_sync_time(self) -> None:
+        """Sync dongle time (device=1, action=settime) using Home Assistant local time."""
+        if self.__api.version != "v2":
+            raise HomeAssistantError("Dongle operations are not supported with V1 protocol")
+
+        from homeassistant.util import dt as dt_util
+
+        now = dt_util.now()
+        payload = {
+            "device": 1,
+            "action": "settime",
+            "value": {"time": now.strftime("%Y%m%d%H%M%S")},
+        }
+
+        try:
+            await self.__api.client.post("setting.cgi", payload)
+            await self.async_refresh()
+        except Exception as err:  # noqa: BLE001
+            raise HomeAssistantError(f"Failed to sync dongle time: {err}") from err
+
+    async def dongle_reboot(self) -> None:
+        """Reboot dongle (device=1, action=operation, reboot=1)."""
+        if self.__api.version != "v2":
+            raise HomeAssistantError("Dongle operations are not supported with V1 protocol")
+
+        payload = {
+            "device": 1,
+            "action": "operation",
+            "value": {"reboot": 1},
+        }
+
+        try:
+            await self.__api.client.post("setting.cgi", payload)
+        except Exception as err:  # noqa: BLE001
+            raise HomeAssistantError(f"Failed to reboot dongle: {err}") from err
 
     async def _write_battery_more_setting(self, register_offset: int, value: int) -> None:
         """Write a battery "More Settings" register via Modbus (function 0x10)."""

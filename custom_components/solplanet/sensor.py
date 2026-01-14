@@ -3,6 +3,7 @@
 from collections import abc
 from dataclasses import dataclass
 import logging
+from typing import Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -12,20 +13,23 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import (
     PERCENTAGE,
+    SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     UnitOfApparentPower,
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
     UnitOfEnergy,
     UnitOfFrequency,
+    UnitOfInformation,
     UnitOfPower,
     UnitOfReactivePower,
     UnitOfTemperature,
     UnitOfTime,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from . import INVERTER_IDENTIFIER, SolplanetConfigEntry
+from . import SolplanetConfigEntry
 from .client import GetInverterDataResponse
 from .const import (
     BATTERY_COMMUNICATION_STATUS,
@@ -39,8 +43,10 @@ from .const import (
     BATTERY_WARNINGS_2,
     BATTERY_WARNINGS_3,
     BATTERY_WARNINGS_4,
+    DONGLE_IDENTIFIER,
     DOMAIN,
     INVERTER_ERROR_CODES,
+    INVERTER_IDENTIFIER,
     INVERTER_STATUS,
     METER_IDENTIFIER,
 )
@@ -413,6 +419,98 @@ def create_meter_entites_description(
             native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
             device_class=SensorDeviceClass.ENERGY,
             state_class=SensorStateClass.TOTAL_INCREASING,
+        ),
+    ]
+
+
+def create_dongle_entites_description(
+    coordinator: SolplanetDataUpdateCoordinator, dongle_id: str
+) -> list[SolplanetSensorEntityDescription]:
+    """Create diagnostic entities for the dongle (V2)."""
+
+    def _stringify(value: Any) -> str | None:
+        if value is None:
+            return None
+        text = str(value)
+        return text if len(text) <= 255 else f"{text[:252]}..."
+
+    def _warnings_text(value: Any) -> str:
+        # Endpoint behavior observed: it may 404 (no warnings) or otherwise be missing.
+        if value is None:
+            return "No warnings"
+        if isinstance(value, dict) and not value:
+            return "No warnings"
+        return _stringify(value) or "No warnings"
+
+    return [
+        # ---- Common / useful diagnostics (enabled by default) ----
+        SolplanetSensorEntityDescription(
+            key=f"{dongle_id}_network_mode",
+            name="Network mode",
+            entity_category=EntityCategory.DIAGNOSTIC,
+            data_field_device_type=DONGLE_IDENTIFIER,
+            data_field_data_type="network",
+            data_field_path=["mode"],
+            data_field_value_mapper=_stringify,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{dongle_id}_network_ssid",
+            name="WiFi SSID",
+            icon="mdi:wifi",
+            entity_category=EntityCategory.DIAGNOSTIC,
+            data_field_device_type=DONGLE_IDENTIFIER,
+            data_field_data_type="network",
+            data_field_path=["sid"],
+            data_field_value_mapper=_stringify,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{dongle_id}_wifi_rssi",
+            name="WiFi signal strength",
+            icon="mdi:wifi",
+            entity_category=EntityCategory.DIAGNOSTIC,
+            data_field_device_type=DONGLE_IDENTIFIER,
+            data_field_data_type="network",
+            data_field_path=["srh"],
+            native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+            device_class=SensorDeviceClass.SIGNAL_STRENGTH,
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{dongle_id}_network_ip",
+            name="IP address",
+            entity_category=EntityCategory.DIAGNOSTIC,
+            data_field_device_type=DONGLE_IDENTIFIER,
+            data_field_data_type="network",
+            data_field_path=["ip"],
+            data_field_value_mapper=_stringify,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{dongle_id}_network_gateway",
+            name="Gateway",
+            entity_category=EntityCategory.DIAGNOSTIC,
+            data_field_device_type=DONGLE_IDENTIFIER,
+            data_field_data_type="network",
+            data_field_path=["gtw"],
+            data_field_value_mapper=_stringify,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{dongle_id}_network_netmask",
+            name="Netmask",
+            entity_category=EntityCategory.DIAGNOSTIC,
+            data_field_device_type=DONGLE_IDENTIFIER,
+            data_field_data_type="network",
+            data_field_path=["msk"],
+            data_field_value_mapper=_stringify,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{dongle_id}_warnings",
+            name="Warnings",
+            icon="mdi:alert-circle-outline",
+            entity_category=EntityCategory.DIAGNOSTIC,
+            data_field_device_type=DONGLE_IDENTIFIER,
+            data_field_data_type="warnings",
+            data_field_path=[],
+            data_field_value_mapper=_warnings_text,
         ),
     ]
 
@@ -799,6 +897,18 @@ async def async_setup_entry(
     ]
 
     sensors: list[SolplanetSensor] = []
+
+    for dongle_id in coordinator.data.get(DONGLE_IDENTIFIER, {}):
+        sensors.extend(
+            SolplanetSensor(
+                description=entity_description,
+                isn=dongle_id,
+                coordinator=coordinator,
+            )
+            for entity_description in create_dongle_entites_description(
+                coordinator, dongle_id
+            )
+        )
 
     for isn in coordinator.data[INVERTER_IDENTIFIER]:
         sensors.extend(
