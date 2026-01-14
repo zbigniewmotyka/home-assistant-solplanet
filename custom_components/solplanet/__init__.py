@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import logging
 
-import voluptuous as vol
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, Platform
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import homeassistant.helpers.config_validation as cv
@@ -26,7 +24,6 @@ from .const import (
     METER_IDENTIFIER,
 )
 from .coordinator import SolplanetDataUpdateCoordinator
-from .modbus import DataType
 from .services import async_setup_services
 
 PLATFORMS: list[Platform] = [
@@ -40,65 +37,15 @@ _LOGGER = logging.getLogger(__name__)
 
 type SolplanetConfigEntry = ConfigEntry[SolplanetApiAdapter]
 
-_LOGGER = logging.getLogger(__name__)
 
-SERVICE_WRITE_REGISTER = "modbus_write_single_holding_register"
-SERVICE_WRITE_REGISTER_SCHEMA = vol.Schema(
-    {
-        vol.Required("device_address"): cv.positive_int,
-        vol.Required("register_address"): cv.positive_int,
-        vol.Required("data_type"): vol.In(
-            ["B16", "B32", "S16", "U16", "S32", "U32", "E16"]
-        ),
-        vol.Required("value"): vol.Coerce(int),
-        vol.Required("dry_run"): cv.boolean,
-    }
-)
+async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+    """Set up the Solplanet integration (services only).
 
-
-def setup_hass_services(hass: HomeAssistant, api: SolplanetApiAdapter) -> None:
-    """Set up Solplanet services."""
-
-    async def handle_write_modbus_register(call: ServiceCall) -> None:
-        device_address = call.data["device_address"]
-        register_address = call.data["register_address"]
-        value = call.data["value"]
-        data_type_str = call.data["data_type"]
-        dry_run = call.data["dry_run"]
-
-        data_type_map = {
-            "B16": DataType.B16,
-            "B32": DataType.B32,
-            "S16": DataType.S16,
-            "U16": DataType.U16,
-            "S32": DataType.S32,
-            "U32": DataType.U32,
-            "E16": DataType.E16,
-            "String": DataType.STRING,
-        }
-        data_type = data_type_map.get(data_type_str, DataType.S16)
-
-        await api.modbus_write_single_holding_register(
-            data_type=data_type,
-            device_address=device_address,
-            register_address=register_address,
-            value=value,
-            dry_run=dry_run,
-        )
-
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_WRITE_REGISTER,
-        handle_write_modbus_register,
-        schema=SERVICE_WRITE_REGISTER_SCHEMA,
-    )
-
-
-async def async_setup(hass: HomeAssistant, entry: SolplanetConfigEntry) -> bool:
-    """Set up the Solplanet integration."""
+    Config entries are set up in `async_setup_entry`.
+    """
     hass.data.setdefault(DOMAIN, {})
 
-    # Set up services
+    # Register services once for the integration domain.
     await async_setup_services(hass)
 
     return True
@@ -106,7 +53,6 @@ async def async_setup(hass: HomeAssistant, entry: SolplanetConfigEntry) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) -> bool:
     """Set up Solplanet from a config entry."""
-
     client = SolplanetClient(entry.data[CONF_HOST], async_get_clientsession(hass))
     try:
         api = await SolplanetApiAdapter.create(client)
@@ -116,7 +62,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
     _LOGGER.info("Using Solplanet protocol version: %s", api.version)
     entry.runtime_data = api
 
-    hass.data[DOMAIN][entry.entry_id] = {}
+    hass.data[DOMAIN][entry.entry_id] = {
+        "api": api,
+    }
 
     device_registry = dr.async_get(hass)
 
@@ -174,7 +122,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
         raise ConfigEntryNotReady("No device detected, inverter in sleep mode")
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    setup_hass_services(hass, api)
 
     return True
 
