@@ -12,7 +12,7 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import SolplanetConfigEntry
-from .const import BATTERY_IDENTIFIER, DOMAIN
+from .const import BATTERY_IDENTIFIER, DOMAIN, INVERTER_IDENTIFIER
 from .coordinator import SolplanetDataUpdateCoordinator
 from .entity import SolplanetEntity, SolplanetEntityDescription
 
@@ -57,8 +57,25 @@ class SolplanetSwitch(SolplanetEntity, SwitchEntity):
         await method(on)
 
 
+def create_inverter_switches(isn: str) -> list[SolplanetSwitchEntityDescription]:
+    """Create switch entities for inverter settings."""
+    return [
+        SolplanetSwitchEntityDescription(
+            key=f"{isn}_inverter_power",
+            name="Power",
+            icon="mdi:power",
+            entity_category=EntityCategory.CONFIG,
+            data_field_device_type=INVERTER_IDENTIFIER,
+            data_field_data_type="more_settings",
+            data_field_path=["power_on"],
+            unique_id_suffix="inverter_power",
+            coordinator_method="set_inverter_power",
+        ),
+    ]
+
+
 def create_battery_switches(isn: str) -> list[SolplanetSwitchEntityDescription]:
-    """Create switch entities for battery 'More Settings'."""
+    """Create switch entities for battery settings."""
     return [
         SolplanetSwitchEntityDescription(
             key=f"{isn}_battery_power",
@@ -94,6 +111,11 @@ async def async_setup_entry(
     coordinator: SolplanetDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
 
     switches: list[SolplanetSwitch] = []
+
+    for isn in coordinator.data.get(INVERTER_IDENTIFIER, {}):
+        for description in create_inverter_switches(isn):
+            switches.append(SolplanetSwitch(description=description, isn=isn, coordinator=coordinator))
+
     for isn in coordinator.data.get(BATTERY_IDENTIFIER, {}):
         for description in create_battery_switches(isn):
             switches.append(SolplanetSwitch(description=description, isn=isn, coordinator=coordinator))

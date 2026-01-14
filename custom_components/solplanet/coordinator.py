@@ -67,19 +67,58 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
             isns: list[str] = [x.isn for x in inverters_info.inv if x.isn]
             inverter_payload: dict[str, dict] = {}
 
-            prev_inverters: dict = previous.get(INVERTER_IDENTIFIER, {}) if isinstance(previous, dict) else {}
+            # Inverter power is controlled via Modbus RTU over `fdbg.cgi`:
+            # - Read holding register offset 0x00C8 (200), quantity 1 (function 0x03)
+            # - Write holding register offset 0x00C8 with 0/1 (function 0x06)
+            # The Modbus helper expects full holding register numbers (40001 + offset).
+            inverter_power_on: bool | None = None
+            try:
+                power_reg = await self.__api.modbus_read_holding_registers(
+                    data_type=DataType.U16,
+                    device_address=3,
+                    register_address=40201,  # 40001 + 200
+                    register_count=1,
+                )
+                if isinstance(power_reg, list):
+                    power_reg = power_reg[0] if power_reg else None
+                if isinstance(power_reg, int):
+                    inverter_power_on = power_reg == 1
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("Failed reading inverter power register: %s", err, exc_info=True)
+
+            prev_inverters: dict = (
+                previous.get(INVERTER_IDENTIFIER, {}) if isinstance(previous, dict) else {}
+            )
             for idx, isn in enumerate(isns):
                 info = inverters_info.inv[idx]
+                prev_more_settings = prev_inverters.get(isn, {}).get("more_settings", {})
+
+                more_settings = (
+                    {"power_on": inverter_power_on}
+                    if inverter_power_on is not None
+                    else prev_more_settings
+                )
+
                 try:
                     data = await self.__api.get_inverter_data(isn)
-                    inverter_payload[isn] = {"data": data, "info": info}
+                    inverter_payload[isn] = {
+                        "data": data,
+                        "info": info,
+                        "more_settings": more_settings,
+                    }
                 except Exception as err:  # noqa: BLE001
                     # Keep last known inverter data on transient failures.
-                    _LOGGER.debug("Failed fetching inverter data for %s: %s", isn, err, exc_info=True)
+                    _LOGGER.debug(
+                        "Failed fetching inverter data for %s: %s", isn, err, exc_info=True
+                    )
                     if isn in prev_inverters:
                         inverter_payload[isn] = prev_inverters[isn]
                     else:
-                        inverter_payload[isn] = {"data": None, "info": info}
+                        inverter_payload[isn] = {
+                            "data": None,
+                            "info": info,
+                            "more_settings": more_settings,
+                        }
 
             # Batteries (V2 only)
             battery_payload: dict[str, dict] = {}
@@ -196,6 +235,22 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
                 BATTERY_IDENTIFIER: battery_payload,
                 METER_IDENTIFIER: meter_payload,
             }
+
+    async def set_inverter_power(self, on: bool) -> None:
+        """Set inverter power (offset 200). 1=on, 0=off."""
+        try:
+            await self.__api.modbus_write_single_holding_register(
+                data_type=DataType.U16,
+                device_address=3,
+                register_address=40201,  # 40001 + 200
+                value=1 if on else 0,
+                dry_run=False,
+            )
+            await self.async_refresh()
+        except NotImplementedError as err:
+            raise HomeAssistantError(
+                "Modbus operations are not supported with V1 protocol"
+            ) from err
 
     async def _write_battery_more_setting(self, register_offset: int, value: int) -> None:
         """Write a battery "More Settings" register via Modbus (function 0x10)."""
