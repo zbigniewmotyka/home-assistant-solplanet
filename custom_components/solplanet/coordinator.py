@@ -1,5 +1,7 @@
 """Solplanet data coordinator."""
 
+from __future__ import annotations
+
 import asyncio
 from datetime import timedelta
 import logging
@@ -24,6 +26,10 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
         """Create instance of solplanet coordinator."""
         self.__api = api
 
+        # Some dongles/inverters are very sensitive to concurrent requests.
+        # Serialize update cycles to reduce timeouts/flapping.
+        self._update_lock = asyncio.Lock()
+
         _LOGGER.debug("Creating inverter coordinator")
 
         super().__init__(
@@ -34,90 +40,108 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
         )
 
     async def _async_update_data(self):
-        """Fetch data from REST API."""
-        try:
-            _LOGGER.debug("Updating inverters data")
-            inverters_info = await self.__api.get_inverter_info()
+        """Fetch data from REST API.
 
-            isns = [x.isn for x in inverters_info.inv]
-            inverters_data = await asyncio.gather(
-                *[self.__api.get_inverter_data(isn) for isn in isns]
-            )
-
-            # Try to get battery data (not supported in V1)
-            battery_isns = []
-            battery_data = []
-            battery_info = []
-            battery_schedules = []
+        The inverter dongle can be slow and may not tolerate concurrent requests well.
+        We intentionally:
+        - serialize update cycles with a lock,
+        - avoid large `asyncio.gather()` fan-outs,
+        - degrade gracefully (keep previous payload sections) where possible to reduce flapping.
+        """
+        async with self._update_lock:
+            previous: dict = self.data or {}
 
             try:
-                battery_isns = [x.isn for x in inverters_info.inv if x.isStorage()]
+                _LOGGER.debug("Updating inverters data")
+                inverters_info = await self.__api.get_inverter_info()
+            except Exception as err:
+                _LOGGER.debug(err, stack_info=True, exc_info=True)
+                raise UpdateFailed(f"Error fetching inverter info: {err}") from err
+
+            isns: list[str] = [x.isn for x in inverters_info.inv if x.isn]
+            inverter_payload: dict[str, dict] = {}
+
+            prev_inverters: dict = previous.get(INVERTER_IDENTIFIER, {}) if isinstance(previous, dict) else {}
+            for idx, isn in enumerate(isns):
+                info = inverters_info.inv[idx]
+                try:
+                    data = await self.__api.get_inverter_data(isn)
+                    inverter_payload[isn] = {"data": data, "info": info}
+                except Exception as err:  # noqa: BLE001
+                    # Keep last known inverter data on transient failures.
+                    _LOGGER.debug("Failed fetching inverter data for %s: %s", isn, err, exc_info=True)
+                    if isn in prev_inverters:
+                        inverter_payload[isn] = prev_inverters[isn]
+                    else:
+                        inverter_payload[isn] = {"data": None, "info": info}
+
+            # Batteries (V2 only)
+            battery_payload: dict[str, dict] = {}
+            prev_batteries: dict = previous.get(BATTERY_IDENTIFIER, {}) if isinstance(previous, dict) else {}
+
+            try:
+                battery_isns: list[str] = [x.isn for x in inverters_info.inv if x.isStorage() and x.isn]
+                schedule: dict | None = None
+
                 if battery_isns:
-                    # Fetch battery data and info in parallel
-                    battery_data, battery_info, battery_schedules_raw = await asyncio.gather(
-                        asyncio.gather(*[self.__api.get_battery_data(isn) for isn in battery_isns]),
-                        asyncio.gather(*[self.__api.get_battery_info(isn) for isn in battery_isns]),
-                        asyncio.gather(*[self.__api.get_schedule() for isn in battery_isns])
-                    )
+                    # getdefine.cgi is global (no sn parameter) so fetch it once
+                    try:
+                        schedule = await self.__api.get_schedule()
+                    except Exception as err:  # noqa: BLE001
+                        _LOGGER.debug("Failed fetching schedule: %s", err, exc_info=True)
 
-                    # Get schedule for each battery
-                    battery_schedules = [{
-                        "raw": raw_response.get("raw", {}),
-                        "slots": raw_response.get("slots", {}),
-                        "Pin": raw_response.get("Pin", 0),
-                        "Pout": raw_response.get("Pout", 0)
-                    } for raw_response in battery_schedules_raw]
-
-                    _LOGGER.debug("Battery schedules: %s", battery_schedules)
+                    for isn in battery_isns:
+                        try:
+                            data = await self.__api.get_battery_data(isn)
+                            info = await self.__api.get_battery_info(isn)
+                            battery_payload[isn] = {
+                                "data": data,
+                                "info": info,
+                                "work_modes": {
+                                    "all": BatteryWorkModes().get_all_modes(info.type, info.mod_r),
+                                    "selected": BatteryWorkModes().get_mode(info.type, info.mod_r),
+                                },
+                                "schedule": schedule or prev_batteries.get(isn, {}).get("schedule", {}),
+                            }
+                        except Exception as err:  # noqa: BLE001
+                            _LOGGER.debug("Failed fetching battery data for %s: %s", isn, err, exc_info=True)
+                            if isn in prev_batteries:
+                                battery_payload[isn] = prev_batteries[isn]
+                            else:
+                                # Provide minimal structure so entities can exist without crashing
+                                battery_payload[isn] = {
+                                    "data": None,
+                                    "info": prev_batteries.get(isn, {}).get("info"),
+                                    "work_modes": prev_batteries.get(isn, {}).get("work_modes", {"all": [], "selected": None}),
+                                    "schedule": schedule or {},
+                                }
             except NotImplementedError:
                 _LOGGER.info("Battery operations not supported (V1 protocol)")
-                battery_isns = []
-                battery_data = []
-                battery_info = []
-                battery_schedules = []
+                battery_payload = {}
 
-            meter = None
-            meter_sn = isns[0] if len(isns) > 0 else None
+            # Meter
+            meter_payload: dict[str, dict] = {}
+            prev_meter: dict = previous.get(METER_IDENTIFIER, {}) if isinstance(previous, dict) else {}
+            meter_sn: str | None = isns[0] if isns else None
+
             try:
-                meter_data, meter_info = await asyncio.gather(
-                    self.__api.get_meter_data(),
-                    self.__api.get_meter_info()
-                )
+                meter_data = await self.__api.get_meter_data()
+                meter_info = await self.__api.get_meter_info()
                 meter = {"data": meter_data, "info": meter_info}
-
                 if meter_info.sn is not None:
                     meter_sn = meter_info.sn
+                if meter_sn:
+                    meter_payload = {meter_sn: meter}
             except Exception as err:  # noqa: BLE001
-                _LOGGER.debug(err, stack_info=True, exc_info=True)
+                _LOGGER.debug("Failed fetching meter data: %s", err, exc_info=True)
+                meter_payload = prev_meter
 
             _LOGGER.debug("Inverters data updated")
             return {
-                INVERTER_IDENTIFIER: {
-                    isns[i]: {"data": inverters_data[i], "info": inverters_info.inv[i]}
-                    for i in range(len(isns))
-                },
-                BATTERY_IDENTIFIER: {
-                    battery_isns[i]: {
-                        "data": battery_data[i],
-                        "info": battery_info[i],
-                        "work_modes": {
-                            "all": BatteryWorkModes().get_all_modes(
-                                battery_info[i].type, battery_info[i].mod_r
-                            ),
-                            "selected": BatteryWorkModes().get_mode(
-                                battery_info[i].type, battery_info[i].mod_r
-                            ),
-                        },
-                        "schedule": battery_schedules[i],
-                    }
-                    for i in range(len(battery_isns))
-                },
-                METER_IDENTIFIER: {meter_sn: meter} if meter and meter_sn else {},
+                INVERTER_IDENTIFIER: inverter_payload,
+                BATTERY_IDENTIFIER: battery_payload,
+                METER_IDENTIFIER: meter_payload,
             }
-
-        except Exception as err:
-            _LOGGER.debug(err, stack_info=True, exc_info=True)
-            raise UpdateFailed(f"Error fetching data from API: {err}") from err
 
     async def set_battery_work_mode(self, sn: str, mode: BatteryWorkMode) -> None:
         """Set battery work mode."""
