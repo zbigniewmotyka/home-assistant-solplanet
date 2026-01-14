@@ -228,7 +228,7 @@ def create_inverter_entites_description(
             data_field_value_multiply=0.1,
             native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
             device_class=SensorDeviceClass.ENERGY,
-            state_class=SensorStateClass.MEASUREMENT,
+            state_class=SensorStateClass.TOTAL_INCREASING,
         ),
         SolplanetSensorEntityDescription(
             key=f"{isn}_tmp",
