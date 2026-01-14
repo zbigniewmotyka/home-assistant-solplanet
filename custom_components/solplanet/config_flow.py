@@ -120,7 +120,9 @@ class SolplanetOptionsFlow(OptionsFlow):
 
     def __init__(self, config_entry: ConfigEntry) -> None:
         """Initialize options flow."""
-        self.config_entry = config_entry
+        # HA exposes OptionsFlow.config_entry as a read-only property in newer versions.
+        # Store the entry on our own attribute.
+        self._config_entry = config_entry
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -128,15 +130,16 @@ class SolplanetOptionsFlow(OptionsFlow):
         """Manage the options."""
         if user_input is not None:
             # Update the config entry data with new interval
-            new_data = {**self.config_entry.data, CONF_INTERVAL: user_input[CONF_INTERVAL]}
-            self.hass.config_entries.async_update_entry(
-                self.config_entry, data=new_data
-            )
-            await self.hass.config_entries.async_reload(self.config_entry.entry_id)
+            new_data = {
+                **self._config_entry.data,
+                CONF_INTERVAL: user_input[CONF_INTERVAL],
+            }
+            self.hass.config_entries.async_update_entry(self._config_entry, data=new_data)
+            await self.hass.config_entries.async_reload(self._config_entry.entry_id)
             return self.async_create_entry(title="", data={})
 
         # Show form with current interval value
-        current_interval = self.config_entry.data.get(CONF_INTERVAL, DEFAULT_INTERVAL)
+        current_interval = self._config_entry.data.get(CONF_INTERVAL, DEFAULT_INTERVAL)
         schema = vol.Schema(
             {
                 vol.Required(CONF_INTERVAL, default=current_interval): int,
