@@ -33,11 +33,15 @@ class SolplanetEntityDescription(EntityDescription):
 
 
 class SolplanetEntity(CoordinatorEntity, Entity):
-    """Representation of a Solplanet sensor."""
+    """Base class for Solplanet entities backed by the coordinator.
+
+    Notes:
+    - Do not set `entity_id` manually. Home Assistant assigns it via the entity registry.
+    - Use `unique_id` for stable entity IDs across restarts.
+    """
 
     entity_description: SolplanetEntityDescription
     unique_id_suffix: str
-    sanitized_entity_id: str
 
     def __init__(
         self,
@@ -45,7 +49,7 @@ class SolplanetEntity(CoordinatorEntity, Entity):
         isn: str,
         coordinator: SolplanetDataUpdateCoordinator,
     ) -> None:
-        """Initialize the sensor."""
+        """Initialize the entity."""
         super().__init__(coordinator)
         self.entity_description = description
         self.unique_id_suffix = (
@@ -53,22 +57,17 @@ class SolplanetEntity(CoordinatorEntity, Entity):
             if description.unique_id_suffix
             else "_".join(str(x) for x in description.data_field_path)
         )
-        self.sanitized_entity_id = self._sanitize_string_for_entity_id(
-            f"{isn}_{description.name}"
-        )
         self._isn = isn
-        self._set_native_value()
 
-        self.entity_id = (
-            f"sensor.solplanet_{self.sanitized_entity_id}"
-            if description.data_field_device_type == INVERTER_IDENTIFIER
-            else f"sensor.solplanet_{self.entity_description.data_field_device_type}_{self.sanitized_entity_id}"
-        )
+        # Stable unique_id for the entity registry
         self._attr_unique_id = (
             f"solplanet_{isn}_{self.unique_id_suffix}"
             if description.data_field_device_type == INVERTER_IDENTIFIER
             else f"solplanet_{self.entity_description.data_field_device_type}_{isn}_{self.unique_id_suffix}"
         )
+
+        # Set initial value (may be None if inverter is sleeping / data not ready yet)
+        self._set_native_value()
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -80,16 +79,21 @@ class SolplanetEntity(CoordinatorEntity, Entity):
         try:
             self._attr_native_value = self._get_value_from_coordinator()
         except InverterInSleepModeError:
+            # When the inverter is sleeping or a specific device payload isn't present,
+            # keep the entity "available" and just show unknown (None) state.
+            self._attr_native_value = None
             _LOGGER.debug(
-                "Component serial number not in data - this is normal if the inverter is sleeping"
+                "No data for %s (%s) - inverter may be sleeping",
+                self.entity_description.key,
+                self._isn,
             )
 
     def _get_value_from_coordinator(self) -> float | int | str | None:
-        """Return the state of the sensor."""
+        """Return the value from coordinator data."""
         try:
-            data = self.coordinator.data[
-                self.entity_description.data_field_device_type
-            ][self._isn][self.entity_description.data_field_data_type]
+            data = self.coordinator.data[self.entity_description.data_field_device_type][
+                self._isn
+            ][self.entity_description.data_field_data_type]
         except KeyError:
             raise InverterInSleepModeError from None
 
@@ -129,18 +133,27 @@ class SolplanetEntity(CoordinatorEntity, Entity):
 
         return data
 
-    def _sanitize_string_for_entity_id(self, input_string: str) -> str:
-        sanitized_string = input_string.lower()
-        sanitized_string = re.sub(r"[^a-z0-9_]+", "_", sanitized_string)
-        sanitized_string = re.sub(r"_+", "_", sanitized_string)
-        return sanitized_string.strip("_")
-
     def has_value_in_response(self) -> bool:
-        """Return if sensor has value in response."""
+        """Return if entity has a non-None value in the latest coordinator payload.
+
+        Note: avoid using this to decide whether to add entities. If the inverter is slow/sleeping
+        at startup, entities would never be created.
+        """
         try:
             return self._get_value_from_coordinator() is not None
         except InverterInSleepModeError:
             return False
+
+    @property
+    def available(self) -> bool:
+        """Return entity availability.
+
+        Keep entities available when the coordinator update succeeded but a specific value is
+        missing (e.g. inverter sleeping). Only mark unavailable when the coordinator update failed.
+        """
+        if not self.coordinator.last_update_success:
+            return False
+        return True
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -166,9 +179,12 @@ class SolplanetEntity(CoordinatorEntity, Entity):
         if not self.entity_description.attributes_fn:
             return None
 
-        data = self.coordinator.data[self.entity_description.data_field_device_type][
-            self._isn
-        ][self.entity_description.data_field_data_type]
+        try:
+            data = self.coordinator.data[self.entity_description.data_field_device_type][
+                self._isn
+            ][self.entity_description.data_field_data_type]
+        except KeyError:
+            return None
 
         try:
             return self.entity_description.attributes_fn(data)
