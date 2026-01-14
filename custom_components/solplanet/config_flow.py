@@ -43,14 +43,40 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     _LOGGER.info("Detected Solplanet protocol version: %s", api.version)
 
     try:
-        await api.get_inverter_info()
+        inverter_info = await api.get_inverter_info()
     except Exception as err:
         _LOGGER.debug("Exception occurred during adding device", exc_info=err)
         raise CannotConnect from err
-    else:
-        return {
-            "title": data[CONF_HOST],
-        }
+
+    # Prefer a stable hardware identifier for the config entry unique_id.
+    # Using host/IP as the unique_id causes duplicate entries when the IP/DNS changes.
+    unique_id: str | None = None
+    title = data[CONF_HOST]
+
+    # V2 exposes dongle details at getdev.cgi (no device parameter), which includes psn/mac.
+    if api.version == "v2":
+        try:
+            dongle = await api.client.get("getdev.cgi")
+            unique_id = dongle.get("psn") or dongle.get("ethmac") or dongle.get("wlanmac")
+            if unique_id:
+                # Prefer the dongle-reported name; fall back to a neutral integration label.
+                dongle_name = dongle.get("nam") or "Solplanet Dongle"
+                title = f"{dongle_name} ({unique_id})"
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("Failed to read dongle identity: %s", err, exc_info=True)
+
+    # Fallback: inverter serial
+    if not unique_id:
+        try:
+            unique_id = inverter_info.inv[0].isn  # stable serial
+            title = inverter_info.inv[0].isn or title
+        except Exception:  # noqa: BLE001
+            unique_id = data[CONF_HOST]
+
+    return {
+        "title": title,
+        "unique_id": unique_id,
+    }
 
 
 class SolplanetConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -106,8 +132,10 @@ class SolplanetConfigFlow(ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
             else:
-                await self.async_set_unique_id(info["title"])
-                self._abort_if_unique_id_configured()
+                # Use stable hardware identity so changing IP/DNS doesn't create duplicates.
+                await self.async_set_unique_id(info["unique_id"])
+                # If already configured, update the host and abort instead of creating a new entry.
+                self._abort_if_unique_id_configured(updates={CONF_HOST: user_input[CONF_HOST]})
                 return self.async_create_entry(title=info["title"], data=user_input)
 
         return self.async_show_form(
