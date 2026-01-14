@@ -85,11 +85,12 @@ async def async_setup_entry(
     """Set up binary sensors."""
     coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
 
-    sensors = []
+    sensors: list[SolplanetBinarySensor] = []
     for isn in coordinator.data[BATTERY_IDENTIFIER]:
         sensors.extend(
             SolplanetBinarySensor(description=description, isn=isn, coordinator=coordinator)
             for description in create_battery_binary_sensors(coordinator, isn)
         )
 
-    async_add_entities([sensor for sensor in sensors if sensor.has_value_in_response()])
+    # Always add entities; values may be missing during startup/inverter sleep.
+    async_add_entities(sensors)

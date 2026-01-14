@@ -834,4 +834,6 @@ async def async_setup_entry(
             for entity_description in create_meter_entites_description(coordinator, isn)
         )
 
-    async_add_entities([sensor for sensor in sensors if sensor.has_value_in_response()])
+    # Always add entities. If the inverter is slow/sleeping at startup, filtering here would
+    # permanently prevent entities from being created.
+    async_add_entities(sensors)

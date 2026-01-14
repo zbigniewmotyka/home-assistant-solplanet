@@ -104,7 +104,7 @@ async def async_setup_entry(
     entry: SolplanetConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up selects for Solplanet Inverter from a config entry."""
+    """Set up select entities for Solplanet from a config entry."""
     coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
 
     sensors: list[SolplanetSelect] = []
@@ -121,4 +121,5 @@ async def async_setup_entry(
             )
         )
 
-    async_add_entities([sensor for sensor in sensors if sensor.has_value_in_response()])
+    # Always add entities; values may be missing during startup/inverter sleep.
+    async_add_entities(sensors)
