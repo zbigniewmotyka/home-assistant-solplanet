@@ -262,20 +262,79 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
 
             # Meter
             meter_payload: dict[str, dict] = {}
-            prev_meter: dict = previous.get(METER_IDENTIFIER, {}) if isinstance(previous, dict) else {}
+            prev_meter: dict = (
+                previous.get(METER_IDENTIFIER, {}) if isinstance(previous, dict) else {}
+            )
             meter_sn: str | None = isns[0] if isns else None
 
-            try:
-                meter_data = await self.__api.get_meter_data()
-                meter_info = await self.__api.get_meter_info()
-                meter = {"data": meter_data, "info": meter_info}
-                if meter_info.sn is not None:
-                    meter_sn = meter_info.sn
-                if meter_sn:
-                    meter_payload = {meter_sn: meter}
-            except Exception as err:  # noqa: BLE001
-                _LOGGER.debug("Failed fetching meter data: %s", err, exc_info=True)
-                meter_payload = prev_meter
+            # V2-only: additional meter inventory + live values via `POST /getting.cgi`.
+            # The response can list multiple meters (main + sub). Live values are attached to the
+            # discovered main meter because `get_meter_data_rsp` does not include a meter selector.
+            app_meters: dict[str, dict] = {}
+            app_primary_sn: str | None = None
+            if self.__api.version == "v2":
+                try:
+                    dev_info_rsp = await self.__api.client.post(
+                        "getting.cgi",
+                        {"cmd": "get_app_dev_info_req", "payload": {"type": [4]}},
+                    )
+                    if dev_info_rsp.get("status") == 200:
+                        payload = dev_info_rsp.get("payload") or {}
+                        main_meters = payload.get("mainMeter") or []
+                        sub_meters = payload.get("subMeter") or []
+
+                        if main_meters and isinstance(main_meters[0], dict):
+                            app_primary_sn = main_meters[0].get("sn")
+
+                        for meter in [*main_meters, *sub_meters]:
+                            if not isinstance(meter, dict):
+                                continue
+                            sn = meter.get("sn") or f"addr_{meter.get('address')}"
+                            app_meters.setdefault(sn, {})["app_info"] = meter
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.debug("Failed fetching app meter info: %s", err, exc_info=True)
+
+                try:
+                    meter_data_rsp = await self.__api.client.post(
+                        "getting.cgi",
+                        {"cmd": "get_meter_data_req"},
+                    )
+                    if meter_data_rsp.get("status") == 200:
+                        app_data = meter_data_rsp.get("payload") or {}
+
+                        # The response does not include a meter SN, so attach it to the primary meter
+                        # (main meter) when we know it.
+                        target_sn = app_primary_sn or (next(iter(app_meters)) if app_meters else None)
+                        if target_sn:
+                            app_meters.setdefault(target_sn, {})["app_data"] = app_data
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.debug("Failed fetching app meter data: %s", err, exc_info=True)
+
+            # V2: prefer app-protocol (`getting.cgi`) meters and do not create legacy device=3 meters.
+            if self.__api.version == "v2":
+                if app_meters:
+                    for sn, entry in app_meters.items():
+                        meter_payload[sn] = {"app_info": entry.get("app_info")}
+                        # Only include app_data on the meter we can currently populate.
+                        if entry.get("app_data") is not None:
+                            meter_payload[sn]["app_data"] = entry.get("app_data")
+                else:
+                    # Keep previous payload on transient failures.
+                    meter_payload = prev_meter
+            else:
+                # V1: use legacy meter endpoints.
+                try:
+                    meter_data = await self.__api.get_meter_data()
+                    meter_info = await self.__api.get_meter_info()
+                    meter = {"data": meter_data, "info": meter_info}
+
+                    if meter_info.sn is not None:
+                        meter_sn = meter_info.sn
+                    if meter_sn:
+                        meter_payload = {meter_sn: meter}
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.debug("Failed fetching meter data: %s", err, exc_info=True)
+                    meter_payload = prev_meter
 
             _LOGGER.debug("Inverters data updated")
             return {

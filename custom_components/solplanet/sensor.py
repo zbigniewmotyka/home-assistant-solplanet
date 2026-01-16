@@ -365,7 +365,140 @@ def create_meter_entites_description(
     coordinator: SolplanetDataUpdateCoordinator, isn: str
 ) -> list[SolplanetSensorEntityDescription]:
     """Create entities for meter."""
-    return [
+    meter_entry = coordinator.data.get(METER_IDENTIFIER, {}).get(isn, {})
+
+    # V2: meters are sourced from `POST /getting.cgi` and stored under `app_data`.
+    # V1: meters come from the legacy endpoints and are stored under `data`/`info`.
+    if isinstance(meter_entry, dict) and "app_data" in meter_entry:
+        return [
+            SolplanetSensorEntityDescription(
+                key=f"{isn}_power",
+                name="Grid power",
+                data_field_device_type=METER_IDENTIFIER,
+                data_field_data_type="app_data",
+                data_field_path=["power"],
+                native_unit_of_measurement=UnitOfPower.WATT,
+                device_class=SensorDeviceClass.POWER,
+                state_class=SensorStateClass.MEASUREMENT,
+                unique_id_suffix="power",
+            ),
+            SolplanetSensorEntityDescription(
+                key=f"{isn}_uv",
+                name="LN voltage",
+                data_field_device_type=METER_IDENTIFIER,
+                data_field_data_type="app_data",
+                data_field_path=["uv"],
+                native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+                device_class=SensorDeviceClass.VOLTAGE,
+                state_class=SensorStateClass.MEASUREMENT,
+                unique_id_suffix="uv",
+            ),
+            SolplanetSensorEntityDescription(
+                key=f"{isn}_ui",
+                name="LN current",
+                data_field_device_type=METER_IDENTIFIER,
+                data_field_data_type="app_data",
+                data_field_path=["ui"],
+                native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+                device_class=SensorDeviceClass.CURRENT,
+                state_class=SensorStateClass.MEASUREMENT,
+                unique_id_suffix="ui",
+            ),
+            SolplanetSensorEntityDescription(
+                key=f"{isn}_up",
+                name="LN active power",
+                data_field_device_type=METER_IDENTIFIER,
+                data_field_data_type="app_data",
+                data_field_path=["up"],
+                native_unit_of_measurement=UnitOfPower.KILO_WATT,
+                device_class=SensorDeviceClass.POWER,
+                state_class=SensorStateClass.MEASUREMENT,
+                unique_id_suffix="up",
+            ),
+            SolplanetSensorEntityDescription(
+                key=f"{isn}_upf",
+                name="LN power factor",
+                data_field_device_type=METER_IDENTIFIER,
+                data_field_data_type="app_data",
+                data_field_path=["upf"],
+                device_class=SensorDeviceClass.POWER_FACTOR,
+                state_class=SensorStateClass.MEASUREMENT,
+                unique_id_suffix="upf",
+            ),
+            SolplanetSensorEntityDescription(
+                key=f"{isn}_sac",
+                name="Total apparent power",
+                data_field_device_type=METER_IDENTIFIER,
+                data_field_data_type="app_data",
+                data_field_path=["sac"],
+                native_unit_of_measurement=UnitOfApparentPower.VOLT_AMPERE,
+                device_class=SensorDeviceClass.APPARENT_POWER,
+                state_class=SensorStateClass.MEASUREMENT,
+                unique_id_suffix="sac",
+            ),
+            SolplanetSensorEntityDescription(
+                key=f"{isn}_prc",
+                name="Total reactive power",
+                data_field_device_type=METER_IDENTIFIER,
+                data_field_data_type="app_data",
+                data_field_path=["prc"],
+                native_unit_of_measurement=UnitOfReactivePower.VOLT_AMPERE_REACTIVE,
+                device_class=SensorDeviceClass.REACTIVE_POWER,
+                state_class=SensorStateClass.MEASUREMENT,
+                unique_id_suffix="prc",
+            ),
+            SolplanetSensorEntityDescription(
+                key=f"{isn}_i_today",
+                name="E-grid supplied today",
+                data_field_device_type=METER_IDENTIFIER,
+                data_field_data_type="app_data",
+                data_field_path=["i_today"],
+                native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
+                device_class=SensorDeviceClass.ENERGY,
+                state_class=SensorStateClass.TOTAL_INCREASING,
+                unique_id_suffix="i_today",
+            ),
+            SolplanetSensorEntityDescription(
+                key=f"{isn}_o_today",
+                name="E-grid feed-in today",
+                data_field_device_type=METER_IDENTIFIER,
+                data_field_data_type="app_data",
+                data_field_path=["o_today"],
+                native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+                device_class=SensorDeviceClass.ENERGY,
+                state_class=SensorStateClass.TOTAL_INCREASING,
+                unique_id_suffix="o_today",
+            ),
+            SolplanetSensorEntityDescription(
+                key=f"{isn}_i_total",
+                name="Total grid supplied",
+                data_field_device_type=METER_IDENTIFIER,
+                data_field_data_type="app_data",
+                data_field_path=["i_total"],
+                native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+                device_class=SensorDeviceClass.ENERGY,
+                state_class=SensorStateClass.TOTAL,
+                unique_id_suffix="i_total",
+            ),
+            SolplanetSensorEntityDescription(
+                key=f"{isn}_o_total",
+                name="Total grid feed-in",
+                data_field_device_type=METER_IDENTIFIER,
+                data_field_data_type="app_data",
+                data_field_path=["o_total"],
+                native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+                device_class=SensorDeviceClass.ENERGY,
+                state_class=SensorStateClass.TOTAL,
+                unique_id_suffix="o_total",
+            ),
+        ]
+
+    # V2 sub-meters are represented as devices (via app_info) but may not have any live data yet.
+    # Do not create placeholder entities until an endpoint exists to retrieve per-submeter values.
+    if isinstance(meter_entry, dict) and "app_info" in meter_entry:
+        return []
+
+    sensors: list[SolplanetSensorEntityDescription] = [
         SolplanetSensorEntityDescription(
             key=f"{isn}_pac",
             name="Grid power",
@@ -421,6 +554,8 @@ def create_meter_entites_description(
             state_class=SensorStateClass.TOTAL_INCREASING,
         ),
     ]
+
+    return sensors
 
 
 def create_dongle_entites_description(

@@ -129,16 +129,67 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
         )
 
     for meter_isn in coordinator.data[METER_IDENTIFIER]:
-        meter_info = coordinator.data[METER_IDENTIFIER][meter_isn]["info"]
+        meter_entry = coordinator.data[METER_IDENTIFIER][meter_isn]
+        meter_info = meter_entry.get("info") if isinstance(meter_entry, dict) else None
+        app_info = meter_entry.get("app_info") if isinstance(meter_entry, dict) else None
 
-        device_registry.async_get_or_create(
-            config_entry_id=entry.entry_id,
-            identifiers={(DOMAIN, f"{METER_IDENTIFIER}_{meter_isn or ''}")},
-            name="Energy meter",
-            serial_number=meter_info.sn,
-            manufacturer=meter_info.manufactory,
-            model=meter_info.name,
-        )
+        # V2 meters discovered via `getting.cgi`
+        if isinstance(app_info, dict):
+            # from assets/meter.json
+            equip_model_map: dict[int, str] = {
+                0: "EASTRON SDM630MCT v2",
+                1: "EASTRON SDM630-Modbus V2",
+                2: "EASTRON SDM630-Modbus V1",
+                3: "EASTRON SDM 220",
+                4: "EASTRON SDM120CT(40mA)",
+                6: "EASTRON SEM3-M-2L-CT1",
+                8: "EASTRON SEM1-M-2L-Grid",
+                11: "SolplanetCT",
+                12: "CT-STMHALL",
+                21: "CHINT DDSU666",
+                22: "CHINT DTSU666",
+                31: "CatchPower",
+                51: "WND-WR-MB",
+            }
+
+            addr = app_info.get("address")
+            serial = app_info.get("sn") or meter_isn
+
+            equip_model_raw = app_info.get("equipModel")
+            equip_model = (
+                int(equip_model_raw)
+                if isinstance(equip_model_raw, int | str) and str(equip_model_raw).isdigit()
+                else None
+            )
+            model_name = equip_model_map.get(equip_model) if equip_model is not None else None
+
+            # Some firmwares report equipModel=255 as "None".
+            if equip_model == 255:
+                model_name = None
+
+            name_prefix = model_name or "Meter"
+            name = f"{name_prefix} ({serial})"
+
+            device_registry.async_get_or_create(
+                config_entry_id=entry.entry_id,
+                identifiers={(DOMAIN, f"{METER_IDENTIFIER}_{meter_isn or ''}")},
+                name=name,
+                serial_number=serial,
+                manufacturer=MANUFACTURER,
+                model=model_name or "",
+            )
+            continue
+
+        # V1/V2 legacy meter info
+        if meter_info is not None:
+            device_registry.async_get_or_create(
+                config_entry_id=entry.entry_id,
+                identifiers={(DOMAIN, f"{METER_IDENTIFIER}_{meter_isn or ''}")},
+                name="Energy meter",
+                serial_number=meter_info.sn,
+                manufacturer=meter_info.manufactory,
+                model=meter_info.name,
+            )
 
     # Do not block setup if the inverter is sleeping or temporarily unreachable.
     # Entities are added regardless and will show `unknown` state until data is available.
