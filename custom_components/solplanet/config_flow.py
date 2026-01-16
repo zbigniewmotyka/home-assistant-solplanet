@@ -51,6 +51,8 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
     # Prefer a stable hardware identifier for the config entry unique_id.
     # Using host/IP as the unique_id causes duplicate entries when the IP/DNS changes.
     unique_id: str | None = None
+    # Keep the config entry title user-driven (host/hostname they entered).
+    # Use dongle identity only for the backend unique_id.
     title = data[CONF_HOST]
 
     # V2 exposes dongle details at getdev.cgi (no device parameter), which includes psn/mac.
@@ -58,10 +60,7 @@ async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str,
         try:
             dongle = await api.client.get("getdev.cgi")
             unique_id = dongle.get("psn") or dongle.get("ethmac") or dongle.get("wlanmac")
-            if unique_id:
-                # Prefer the dongle-reported name; fall back to a neutral integration label.
-                dongle_name = dongle.get("nam") or "Solplanet Dongle"
-                title = f"{dongle_name} ({unique_id})"
+            # Do not override the title with dongle metadata; keep the user-provided host.
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug("Failed to read dongle identity: %s", err, exc_info=True)
 
