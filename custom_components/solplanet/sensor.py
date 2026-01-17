@@ -370,7 +370,7 @@ def create_meter_entites_description(
     # V2: meters are sourced from `POST /getting.cgi` and stored under `app_data`.
     # V1: meters come from the legacy endpoints and are stored under `data`/`info`.
     if isinstance(meter_entry, dict) and "app_data" in meter_entry:
-        return [
+        sensors: list[SolplanetSensorEntityDescription] = [
             SolplanetSensorEntityDescription(
                 key=f"{isn}_power",
                 name="Grid power",
@@ -493,8 +493,50 @@ def create_meter_entites_description(
             ),
         ]
 
-    # V2 sub-meters are represented as devices (via app_info) but may not have any live data yet.
-    # Do not create placeholder entities until an endpoint exists to retrieve per-submeter values.
+        # Diagnostic: power limit control status/type (based on get_meter_req payload)
+        if meter_entry.get("meter_req") is not None:
+            def _power_limit_control(req: Any) -> str | None:
+                if not isinstance(req, dict):
+                    return None
+                regulate = req.get("regulate")
+                try:
+                    regulate_i = int(regulate)
+                except (TypeError, ValueError):
+                    regulate_i = None
+
+                if regulate_i != 10:
+                    return "Disabled"
+
+                ctrl = req.get("ctrlType")
+                try:
+                    ctrl_i = int(ctrl)
+                except (TypeError, ValueError):
+                    ctrl_i = None
+
+                return {
+                    0: "Limit power",
+                    1: "Limit current",
+                    2: "Zero power",
+                }.get(ctrl_i, "Enabled (unknown type)")
+
+            sensors.append(
+                SolplanetSensorEntityDescription(
+                    key=f"{isn}_power_limit_control",
+                    name="Power limit control",
+                    entity_category=EntityCategory.DIAGNOSTIC,
+                    data_field_device_type=METER_IDENTIFIER,
+                    data_field_data_type="meter_req",
+                    data_field_path=[],
+                    device_class=SensorDeviceClass.ENUM,
+                    data_field_value_mapper=_power_limit_control,
+                    unique_id_suffix="power_limit_control",
+                )
+            )
+
+        return sensors
+
+    # V2 sub-meters discovered via app-protocol are represented as devices (via app_info) but may
+    # not have any live data yet. Do not create placeholder entities.
     if isinstance(meter_entry, dict) and "app_info" in meter_entry:
         return []
 

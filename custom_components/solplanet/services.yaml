@@ -84,6 +84,186 @@ clear_schedule:
             - "Sat"
             - "Sun"
 
+set_meter_limit_power:
+  name: Enable power limit control (Limit power)
+  description: Enable power limit control in Limit power mode.
+  fields:
+    device_id:
+      name: Meter device
+      description: Select the Solplanet meter device.
+      required: true
+      selector:
+        device:
+          integration: solplanet
+    abs:
+      name: Limit mode
+      description: 0=Phase-balanced (Sum of all phases), 1=Phase-specific (Per phase)
+      required: true
+      selector:
+        select:
+          options:
+            - label: "Phase-balanced (Sum of all phases)"
+              value: "0"
+            - label: "Phase-specific (Per phase)"
+              value: "1"
+    limitType:
+      name: Limit type
+      description: 0=(W) absolute power, 1=(%) of nominal system power
+      required: true
+      selector:
+        select:
+          options:
+            - label: "(W) absolute power"
+              value: "0"
+            - label: "(%) of nominal system power"
+              value: "1"
+    target:
+      name: Export power limit setpoint (W)
+      description: Required when Limit type is Absolute (0). Range 0 to 10000 W.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 10000
+          step: 1
+          mode: box
+    targetPer:
+      name: Export power limit setpoint (%)
+      description: Required when Limit type is Percent (1). Range 0 to 100%.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          mode: box
+    powerDiff:
+      name: Setpoint offset (W)
+      description: Offset in watts. Range -1000 to 1000 W.
+      required: true
+      selector:
+        number:
+          min: -1000
+          max: 1000
+          step: 1
+          mode: box
+    lostTime:
+      name: Communications loss timeout (s)
+      description: Range 1 to 60 seconds.
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 60
+          step: 1
+          mode: box
+    lostPowerMax:
+      name: Communications loss power limit (W)
+      description: Range 0 to 10000 W.
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 10000
+          step: 1
+          mode: box
+
+set_meter_limit_current:
+  name: Enable power limit control (Limit current)
+  description: Enable power limit control in Limit current mode.
+  fields:
+    device_id:
+      name: Meter device
+      description: Select the Solplanet meter device.
+      required: true
+      selector:
+        device:
+          integration: solplanet
+    maxOutCurr:
+      name: Maximum export current limit (A, per phase)
+      description: Range 0 to 3000 A.
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 3000
+          step: 1
+          mode: box
+    maxInCurr:
+      name: Maximum import current limit (A, per phase)
+      description: Range 0 to 3000 A.
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 3000
+          step: 1
+          mode: box
+    currDiff:
+      name: Setpoint offset (A)
+      description: Offset in amps. Range -10 to 10 A.
+      required: false
+      selector:
+        number:
+          min: -10
+          max: 10
+          step: 1
+          mode: box
+    lostTime:
+      name: Communications loss timeout (s)
+      description: Range 1 to 60 seconds.
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 60
+          step: 1
+          mode: box
+    lostCurrMax:
+      name: Communications loss current limit (A)
+      description: Range 0 to 11 A.
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 11
+          step: 1
+          mode: box
+
+set_meter_zero_power:
+  name: Enable power limit control (Zero power)
+  description: Enable power limit control in Zero power mode.
+  fields:
+    device_id:
+      name: Meter device
+      description: Select the Solplanet meter device.
+      required: true
+      selector:
+        device:
+          integration: solplanet
+    lostTime:
+      name: Communications loss timeout (s)
+      description: Range 1 to 60 seconds.
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 60
+          step: 1
+          mode: box
+
+disable_meter_power_limit:
+  name: Disable power limit control
+  description: Disable power limit control.
+  fields:
+    device_id:
+      name: Meter device
+      description: Select the Solplanet meter device.
+      required: true
+      selector:
+        device:
+          integration: solplanet
+
 modbus_write_single_holding_register:
   name: Modbus write single holding register
   description: Write a single holding register to a modbus device.

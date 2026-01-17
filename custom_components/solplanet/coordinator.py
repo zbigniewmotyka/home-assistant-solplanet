@@ -310,6 +310,42 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
                 except Exception as err:  # noqa: BLE001
                     _LOGGER.debug("Failed fetching app meter data: %s", err, exc_info=True)
 
+                # V2 meter config (power limit / zero export)
+                # - get_meter_req gives the control configuration
+                # - get_meter_power_req gives rated current + metering method
+                # These appear to be global for the primary meter.
+                try:
+                    meter_req_rsp = await self.__api.client.post(
+                        "getting.cgi",
+                        {"cmd": "get_meter_req"},
+                    )
+                    if meter_req_rsp.get("status") == 200:
+                        target_sn = app_primary_sn or (next(iter(app_meters)) if app_meters else None)
+                        if target_sn:
+                            app_meters.setdefault(target_sn, {})["meter_req"] = (
+                                meter_req_rsp.get("payload") or {}
+                            )
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.debug("Failed fetching meter config (get_meter_req): %s", err, exc_info=True)
+
+                try:
+                    meter_power_rsp = await self.__api.client.post(
+                        "getting.cgi",
+                        {"cmd": "get_meter_power_req"},
+                    )
+                    if meter_power_rsp.get("status") == 200:
+                        target_sn = app_primary_sn or (next(iter(app_meters)) if app_meters else None)
+                        if target_sn:
+                            app_meters.setdefault(target_sn, {})["meter_power"] = (
+                                meter_power_rsp.get("payload") or {}
+                            )
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.debug(
+                        "Failed fetching meter power config (get_meter_power_req): %s",
+                        err,
+                        exc_info=True,
+                    )
+
             # V2: prefer app-protocol (`getting.cgi`) meters and do not create legacy device=3 meters.
             if self.__api.version == "v2":
                 if app_meters:
@@ -318,6 +354,10 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
                         # Only include app_data on the meter we can currently populate.
                         if entry.get("app_data") is not None:
                             meter_payload[sn]["app_data"] = entry.get("app_data")
+                        if entry.get("meter_req") is not None:
+                            meter_payload[sn]["meter_req"] = entry.get("meter_req")
+                        if entry.get("meter_power") is not None:
+                            meter_payload[sn]["meter_power"] = entry.get("meter_power")
                 else:
                     # Keep previous payload on transient failures.
                     meter_payload = prev_meter
@@ -395,6 +435,33 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
             await self.__api.client.post("setting.cgi", payload)
         except Exception as err:  # noqa: BLE001
             raise HomeAssistantError(f"Failed to reboot dongle: {err}") from err
+
+    async def set_meter_power_limit(self, payload: dict) -> None:
+        """Set meter power limit / zero export configuration (V2 app-protocol).
+
+        This is a generic wrapper around:
+          POST setting.cgi {"cmd":"set_meter_req","payload":{...}}
+        """
+        if self.__api.version != "v2":
+            raise HomeAssistantError("Meter power limit control is not supported with V1 protocol")
+
+        try:
+            rsp = await self.__api.client.post(
+                "setting.cgi",
+                {"cmd": "set_meter_req", "payload": payload},
+            )
+
+            # Expected success response:
+            # {"cmd": "set_meter_rsp", "status": 200}
+            if not isinstance(rsp, dict) or rsp.get("status") != 200:
+                raise HomeAssistantError(f"Unexpected response from set_meter_req: {rsp}")
+
+            # Do not block the service call waiting for a full coordinator refresh.
+            # A full refresh can take a long time on slow/timeout-prone dongles, making the
+            # Actions UI look like it's 'stuck' even though the write succeeded.
+            self.async_request_refresh()
+        except Exception as err:  # noqa: BLE001
+            raise HomeAssistantError(f"Failed to set meter power limit: {err}") from err
 
     async def _write_battery_more_setting(self, register_offset: int, value: int) -> None:
         """Write a battery "More Settings" register via Modbus (function 0x10)."""
