@@ -1096,7 +1096,17 @@ class SolplanetApiV2(ModbusApiMixin):
             pout=pout if pout is not None else current["Pout"],
         )
         request = SetScheduleRequest(value=schedule)
-        await self.client.post("setting.cgi", request)
+        rsp = await self.client.post("setting.cgi", request)
+
+        # Firmware responses vary. Common success patterns observed:
+        # - HTTP 200 + {"dat": "ok"}
+        # - {"status": 200, ...}
+        # We fail fast only when an explicit failure is indicated.
+        if isinstance(rsp, dict):
+            if rsp.get("status") is not None and rsp.get("status") != 200:
+                raise RuntimeError(f"Schedule update failed: {rsp}")
+            if rsp.get("dat") is not None and rsp.get("dat") != "ok":
+                raise RuntimeError(f"Schedule update failed: {rsp}")
 
     async def set_schedule_pin(self, pin: int) -> None:
         """Set battery schedule pin configuration."""
@@ -1110,7 +1120,12 @@ class SolplanetApiV2(ModbusApiMixin):
         """Set battery schedule."""
         _LOGGER.debug("Setting battery schedule: %s", schedule)
         request = SetScheduleRequest(value=schedule)
-        await self.client.post("setting.cgi", request)
+        rsp = await self.client.post("setting.cgi", request)
+        if isinstance(rsp, dict):
+            if rsp.get("status") is not None and rsp.get("status") != 200:
+                raise RuntimeError(f"Schedule update failed: {rsp}")
+            if rsp.get("dat") is not None and rsp.get("dat") != "ok":
+                raise RuntimeError(f"Schedule update failed: {rsp}")
 
     def _create_class_from_dict(self, cls, dict):
         """Create dataclass instance from dict."""
