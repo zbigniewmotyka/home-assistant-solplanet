@@ -43,6 +43,7 @@ from .const import (
     INVERTER_ERROR_CODES,
     INVERTER_STATUS,
     METER_IDENTIFIER,
+    SUBMETER_IDENTIFIER,
 )
 from .coordinator import SolplanetDataUpdateCoordinator
 from .entity import SolplanetEntity, SolplanetEntityDescription
@@ -416,6 +417,66 @@ def create_meter_entites_description(
         ),
     ]
 
+def create_submeter_entites_description(
+    coordinator: SolplanetDataUpdateCoordinator, isn: str
+) -> list[SolplanetSensorEntityDescription]:
+    """Create entities for submeter."""
+    return [
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_pac",
+            name="Second meter power",
+            data_field_device_type=SUBMETER_IDENTIFIER,
+            data_field_data_type="data",
+            data_field_path=["pac"],
+            native_unit_of_measurement=UnitOfPower.WATT,
+            device_class=SensorDeviceClass.POWER,
+            state_class=SensorStateClass.MEASUREMENT,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_iet",
+            name="Second meter energy in total",
+            data_field_device_type=SUBMETER_IDENTIFIER,
+            data_field_data_type="data",
+            data_field_path=["iet"],
+            data_field_value_multiply=0.1,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            device_class=SensorDeviceClass.ENERGY,
+            state_class=SensorStateClass.TOTAL,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_oet",
+            name="Second meter energy out total",
+            data_field_device_type=SUBMETER_IDENTIFIER,
+            data_field_data_type="data",
+            data_field_path=["oet"],
+            data_field_value_multiply=0.1,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            device_class=SensorDeviceClass.ENERGY,
+            state_class=SensorStateClass.TOTAL,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_itd",
+            name="Second meter energy in today",
+            data_field_device_type=SUBMETER_IDENTIFIER,
+            data_field_data_type="data",
+            data_field_path=["itd"],
+            data_field_value_multiply=0.01,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            device_class=SensorDeviceClass.ENERGY,
+            state_class=SensorStateClass.TOTAL_INCREASING,
+        ),
+        SolplanetSensorEntityDescription(
+            key=f"{isn}_otd",
+            name="Second meter energy out today",
+            data_field_device_type=SUBMETER_IDENTIFIER,
+            data_field_data_type="data",
+            data_field_path=["otd"],
+            data_field_value_multiply=0.01,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            device_class=SensorDeviceClass.ENERGY,
+            state_class=SensorStateClass.TOTAL_INCREASING,
+        ),
+    ]
 
 def create_battery_entites_description(
     coordinator: SolplanetDataUpdateCoordinator, isn: str
@@ -832,6 +893,16 @@ async def async_setup_entry(
                 coordinator=coordinator,
             )
             for entity_description in create_meter_entites_description(coordinator, isn)
+        )
+
+    for isn in coordinator.data[SUBMETER_IDENTIFIER]:
+        sensors.extend(
+            SolplanetSensor(
+                description=entity_description,
+                isn=isn,
+                coordinator=coordinator,
+            )
+            for entity_description in create_submeter_entites_description(coordinator, isn)
         )
 
     async_add_entities([sensor for sensor in sensors if sensor.has_value_in_response()])
