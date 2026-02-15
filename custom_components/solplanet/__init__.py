@@ -24,6 +24,7 @@ from .const import (
     INVERTER_IDENTIFIER,
     MANUFACTURER,
     METER_IDENTIFIER,
+    SUBMETER_IDENTIFIER,
 )
 from .coordinator import SolplanetDataUpdateCoordinator
 from .modbus import DataType
@@ -155,6 +156,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
             serial_number=meter_info.sn,
             manufacturer=meter_info.manufactory,
             model=meter_info.name,
+        )
+
+    for meter_isn in coordinator.data[SUBMETER_IDENTIFIER]:
+        meter_info = coordinator.data[SUBMETER_IDENTIFIER][meter_isn]["info"]
+
+        device_registry.async_get_or_create(
+            config_entry_id=entry.entry_id,
+            identifiers={(DOMAIN, f"{SUBMETER_IDENTIFIER}_{meter_isn or ''}")},
+            name="Energy submeter",
+            serial_number=meter_info.sec_sn,
+            manufacturer=meter_info.sec_manufactory,
+            model=meter_info.sec_name,
         )
 
     if len(coordinator.data[INVERTER_IDENTIFIER]) == 0:

@@ -10,7 +10,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .api_adapter import SolplanetApiAdapter
 from .client import BatterySchedule, BatteryWorkMode, BatteryWorkModes, ScheduleSlot
-from .const import BATTERY_IDENTIFIER, DOMAIN, INVERTER_IDENTIFIER, METER_IDENTIFIER
+from .const import BATTERY_IDENTIFIER, DOMAIN, INVERTER_IDENTIFIER, METER_IDENTIFIER, SUBMETER_IDENTIFIER
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -78,11 +78,16 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
                 battery_schedules = []
 
             meter = None
+            submeter = None
             meter_sn = isns[0] if len(isns) > 0 else None
             try:
                 meter_data = await self.__api.get_meter_data()
+                submeter_data = await self.__api.get_submeter_data()
                 meter_info = await self.__api.get_meter_info()
+
                 meter = {"data": meter_data, "info": meter_info}
+                submeter = {"data": submeter_data, "info": meter_info}
+
 
                 if meter_info.sn is not None:
                     meter_sn = meter_info.sn
@@ -112,6 +117,7 @@ class SolplanetDataUpdateCoordinator(DataUpdateCoordinator):
                     for i in range(len(battery_isns))
                 },
                 METER_IDENTIFIER: {meter_sn: meter} if meter and meter_sn else {},
+                SUBMETER_IDENTIFIER: {meter_info.sec_sn: submeter} if submeter and meter_info.sec_enb else {},
             }
 
         except Exception as err:
