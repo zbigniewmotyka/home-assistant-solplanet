@@ -7,13 +7,18 @@ This module contains:
 - Model aliases: Import V2 models as default models for backward compatibility
 """
 
+from __future__ import annotations
+
+import asyncio
 import base64
 import json
 import logging
 import time
+from dataclasses import asdict, is_dataclass, dataclass
+from inspect import signature
 from typing import Any
 
-from aiohttp import ClientResponse, ClientSession
+from aiohttp import ClientError, ClientResponse, ClientSession, ClientTimeout
 
 from .modbus import DataType, ModbusRtuFrameGenerator
 
@@ -32,40 +37,94 @@ _LOGGER = logging.getLogger(__name__)
 class SolplanetClient:
     """Solplanet HTTP client."""
 
-    def __init__(self, host: str, session: ClientSession) -> None:
-        """Create instance of solplanet http client."""
+    def __init__(
+        self,
+        host: str,
+        session: ClientSession,
+        scheme: str = "http",
+        port: int = 8484,
+        request_timeout: float = 15.0,
+        request_retries: int = 1,
+    ) -> None:
+        """Create instance of solplanet http client.
+
+        `request_timeout` and `request_retries` are tuned for embedded inverter dongles that
+        can be slow to respond and may temporarily refuse concurrent connections.
+        """
         self.host = host
-        self.port = 8484
+        self.scheme = scheme
+        self.port = port
         self.session = session
+        self.request_timeout = request_timeout
+        self.request_retries = request_retries
 
     def get_url(self, endpoint: str) -> str:
         """Get URL for specified endpoint."""
-        return "http://" + self.host + ":" + str(self.port) + "/" + endpoint
+        return f"{self.scheme}://{self.host}:{self.port}/{endpoint}"
 
-    async def get(self, endpoint: str):
-        """Make get request to specified endpoint."""
-        return await self._parse_response(
-            await self.session.get(self.get_url(endpoint))
-        )
+    async def get(self, endpoint: str) -> Any:
+        """Make GET request to specified endpoint."""
+        return await self._request("GET", endpoint)
 
-    async def post(self, endpoint: str, data: Any):
-        """Make post request to specified endpoint."""
-        return await self._parse_response(
-            await self.session.post(self.get_url(endpoint), json=data)
-        )
+    async def post(self, endpoint: str, data: Any) -> Any:
+        """Make POST request to specified endpoint."""
+        # Allow dataclass request models
+        payload: Any = asdict(data) if is_dataclass(data) else data
+        return await self._request("POST", endpoint, json_payload=payload)
 
-    async def _parse_response(self, response: ClientResponse):
+    async def _request(
+        self,
+        method: str,
+        endpoint: str,
+        json_payload: Any | None = None,
+    ) -> Any:
+        """Perform an HTTP request with timeout/retry handling."""
+        url = self.get_url(endpoint)
+        kwargs: dict[str, Any] = {}
+
+        # Many of these dongles use a self-signed certificate on https
+        if self.scheme == "https":
+            kwargs["ssl"] = False
+
+        # Use per-request timeout so we can tune for slow responses.
+        kwargs["timeout"] = ClientTimeout(total=self.request_timeout)
+
+        last_err: Exception | None = None
+        for attempt in range(self.request_retries + 1):
+            try:
+                if method == "GET":
+                    async with self.session.get(url, **kwargs) as resp:
+                        return await self._parse_response(resp)
+                if method == "POST":
+                    async with self.session.post(url, json=json_payload, **kwargs) as resp:
+                        return await self._parse_response(resp)
+                raise RuntimeError(f"Unsupported method: {method}")
+            except (asyncio.TimeoutError, ClientError, json.JSONDecodeError) as err:
+                last_err = err
+                if attempt >= self.request_retries:
+                    raise
+                # Small backoff to avoid hammering the dongle.
+                await asyncio.sleep(0.25 * (attempt + 1))
+
+        # Should be unreachable, but keeps type-checkers happy
+        raise RuntimeError(f"HTTP request failed: {last_err}")
+
+    async def _parse_response(self, response: ClientResponse) -> Any:
         """Parse response from inverter endpoints."""
+        response.raise_for_status()
         content = await response.read()
-        _LOGGER.debug(
-            "Received from %s:\nheaders: %s,\ncontent: %s",
-            response.request_info.url,
-            response.raw_headers,
-            base64.b64encode(content),
-        )
-        return json.loads(
-            s=content.strip().decode(response.get_encoding(), "replace"), strict=False
-        )
+
+        # Only do expensive base64 encoding when debug logging is enabled
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            _LOGGER.debug(
+                "Received from %s:\nheaders: %s,\ncontent: %s",
+                response.request_info.url,
+                response.raw_headers,
+                base64.b64encode(content),
+            )
+
+        text = content.strip().decode(response.get_encoding(), "replace")
+        return json.loads(s=text, strict=False)
 
 
 # ============================================================================
@@ -166,9 +225,6 @@ class ModbusApiMixin:
 # ============================================================================
 # Helper Classes
 # ============================================================================
-
-
-from dataclasses import dataclass  # noqa: E402
 
 
 @dataclass
@@ -426,9 +482,6 @@ class SolplanetClient:
 # ============================================================================
 # Response Models (shared by both V1 and V2 APIs)
 # ============================================================================
-
-from dataclasses import dataclass
-from inspect import signature
 
 
 @dataclass

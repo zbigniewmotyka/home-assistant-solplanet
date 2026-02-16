@@ -82,26 +82,39 @@ class SolplanetApiAdapter:
             "v2" if V2 protocol is supported, "v1" otherwise
 
         """
-        # Try V2 endpoint first (getdev.cgi?device=2)
-        try:
-            _LOGGER.debug("Attempting to detect V2 protocol...")
-            await client.get("getdev.cgi?device=2")
-            _LOGGER.debug("V2 protocol detected successfully")
-            return "v2"
-        except Exception as e:
-            _LOGGER.debug("V2 protocol detection failed: %s", e)
 
-        # Fall back to V1 endpoint (invinfo.cgi)
-        try:
-            _LOGGER.debug("Attempting to detect V1 protocol...")
-            await client.get("invinfo.cgi")
-            _LOGGER.debug("V1 protocol detected successfully")
-            return "v1"
-        except Exception as e:
-            _LOGGER.warning("V1 protocol detection also failed: %s", e)
-            # Default to V2 if both fail (backward compatibility)
-            _LOGGER.warning("Defaulting to V2 protocol")
-            return "v2"
+        # API version configurations: (version_name, endpoint, scheme, port)
+        api_configs = [
+            ("v2", "getdev.cgi?device=2", "https", 443),
+            ("v2", "getdev.cgi?device=2", "http", 8484),
+            ("v1", "invinfo.cgi", "http", 8484),
+        ]
+
+        for version, endpoint, scheme, port in api_configs:
+            client.scheme = scheme
+            client.port = port
+            try:
+                _LOGGER.debug("Attempting to detect %s protocol using %s and port %s...",
+                    version,
+                    scheme,
+                    port,
+                )
+                await client.get(endpoint)
+                _LOGGER.debug("%s protocol detected successfully using %s and port %s",
+                    version,
+                    scheme,
+                    port,
+                )
+                return version
+            except Exception as e:
+                _LOGGER.debug("%s protocol detection failed using %s and port %s: %s",
+                    version,
+                    scheme,
+                    port,
+                    e
+                )
+
+        raise RuntimeError("Failed to detect any supported protocol version")
 
     @property
     def version(self) -> Literal["v1", "v2"]:
@@ -268,6 +281,16 @@ class SolplanetApiAdapter:
         if not self._supports_battery_operations():
             raise NotImplementedError("Battery operations are not supported in V1 protocol")
         await self._api.set_schedule_slots(schedule)
+
+    async def get_submeter_data(self) -> GetMeterDataResponse:
+        """Get submeter data.
+
+        Returns:
+            GetMeterDataResponse: Meter data
+        """
+        if not self._version == "v2":
+            raise NotImplementedError("Submeters are not supported in V1 protocol")
+        return await self._api.get_submeter_data()
 
     # ========================================================================
     # Modbus methods (delegated to underlying API)
