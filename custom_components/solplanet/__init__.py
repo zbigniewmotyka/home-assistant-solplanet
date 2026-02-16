@@ -14,7 +14,8 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import homeassistant.helpers.config_validation as cv
 import homeassistant.helpers.device_registry as dr
 
-from .client import SolplanetApi, SolplanetClient
+from .api_adapter import SolplanetApiAdapter
+from .client import SolplanetClient
 from .const import (
     BATTERY_IDENTIFIER,
     CONF_INTERVAL,
@@ -26,8 +27,8 @@ from .const import (
     SUBMETER_IDENTIFIER,
 )
 from .coordinator import SolplanetDataUpdateCoordinator
-from .services import async_setup_services
 from .modbus import DataType
+from .services import async_setup_services
 
 PLATFORMS: list[Platform] = [
     Platform.SENSOR,
@@ -38,7 +39,7 @@ PLATFORMS: list[Platform] = [
 CONFIG_SCHEMA = cv.empty_config_schema(DOMAIN)
 _LOGGER = logging.getLogger(__name__)
 
-type SolplanetConfigEntry = ConfigEntry[SolplanetApi]
+type SolplanetConfigEntry = ConfigEntry[SolplanetApiAdapter]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -56,7 +57,7 @@ SERVICE_WRITE_REGISTER_SCHEMA = vol.Schema(
 )
 
 
-def setup_hass_services(hass: HomeAssistant, api: SolplanetApi) -> None:
+def setup_hass_services(hass: HomeAssistant, api: SolplanetApiAdapter) -> None:
     """Set up Solplanet services."""
 
     async def handle_write_modbus_register(call: ServiceCall) -> None:
@@ -97,10 +98,10 @@ def setup_hass_services(hass: HomeAssistant, api: SolplanetApi) -> None:
 async def async_setup(hass: HomeAssistant, entry: SolplanetConfigEntry) -> bool:
     """Set up the Solplanet integration."""
     hass.data.setdefault(DOMAIN, {})
-    
+
     # Set up services
     await async_setup_services(hass)
-    
+
     return True
 
 
@@ -108,7 +109,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) ->
     """Set up Solplanet from a config entry."""
 
     client = SolplanetClient(entry.data[CONF_HOST], async_get_clientsession(hass))
-    api = SolplanetApi(client)
+    api = await SolplanetApiAdapter.create(client)
+    _LOGGER.info("Using Solplanet protocol version: %s", api.version)
     entry.runtime_data = api
 
     hass.data[DOMAIN][entry.entry_id] = {}
