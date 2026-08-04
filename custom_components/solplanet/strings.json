@@ -4,13 +4,17 @@
       "user": {
         "data": {
           "host": "Solplanet inverter ip address / host",
+          "port": "Port (443 for HTTPS, 8484 for legacy HTTP)",
+          "use_https": "Use HTTPS (recommended for firmware V610+)",
           "interval": "Update interval (seconds)"
         }
       },
       "reconfigure": {
         "title": "Reconfigure Solplanet",
-        "description": "Update the polling interval for this device",
+        "description": "Update connection settings and polling interval for this device",
         "data": {
+          "port": "Port (443 for HTTPS, 8484 for legacy HTTP)",
+          "use_https": "Use HTTPS (recommended for firmware V610+)",
           "interval": "Update interval (seconds)"
         }
       }

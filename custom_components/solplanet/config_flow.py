@@ -19,43 +19,94 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .client import SolplanetApi, SolplanetClient
-from .const import CONF_INTERVAL, DEFAULT_INTERVAL, DOMAIN
+from .const import (
+    CONF_INTERVAL,
+    CONF_PORT,
+    CONF_USE_HTTPS,
+    DEFAULT_INTERVAL,
+    DEFAULT_PORT,
+    DEFAULT_USE_HTTPS,
+    DOMAIN,
+    LEGACY_PORT,
+    LEGACY_USE_HTTPS,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_HOST): str,
+        vol.Optional(CONF_PORT, default=DEFAULT_PORT): vol.All(
+            int, vol.Range(min=1, max=65535)
+        ),
+        vol.Optional(CONF_USE_HTTPS, default=DEFAULT_USE_HTTPS): bool,
         vol.Required(CONF_INTERVAL, default=DEFAULT_INTERVAL): int,
     }
 )
 
 
+async def _try_connect(
+    hass: HomeAssistant, host: str, port: int, use_https: bool
+) -> bool:
+    """Return True if ``get_inverter_info`` succeeds against ``host:port``."""
+    client = SolplanetClient(
+        host, async_get_clientsession(hass), port=port, use_https=use_https
+    )
+    api = SolplanetApi(client)
+    try:
+        await api.get_inverter_info()
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.debug(
+            "Connect attempt failed for %s://%s:%s (%s)",
+            "https" if use_https else "http",
+            host,
+            port,
+            err,
+        )
+        return False
+    return True
+
+
 async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> dict[str, Any]:
     """Validate the user input allows us to connect.
 
-    Data has the keys from STEP_USER_DATA_SCHEMA with values provided by the user.
+    Tries the user-supplied scheme/port first; on failure falls back to
+    the legacy HTTP 8484 endpoint so the integration works on both
+    newer (HTTPS 443) and older (HTTP 8484) Ai-Dongle firmware versions
+    without manual intervention.
     """
+    host = data[CONF_HOST]
+    port = data.get(CONF_PORT, DEFAULT_PORT)
+    use_https = data.get(CONF_USE_HTTPS, DEFAULT_USE_HTTPS)
 
-    client = SolplanetClient(data[CONF_HOST], async_get_clientsession(hass))
-    api = SolplanetApi(client)
-
-    try:
-        await api.get_inverter_info()
-    except Exception as err:
-        _LOGGER.debug("Exception occurred during adding device", exc_info=err)
-        raise CannotConnect from err
-    else:
+    if await _try_connect(hass, host, port, use_https):
         return {
-            "title": data[CONF_HOST],
+            "title": host,
+            CONF_PORT: port,
+            CONF_USE_HTTPS: use_https,
         }
+
+    # Fallback to the legacy scheme.
+    legacy_port, legacy_https = LEGACY_PORT, LEGACY_USE_HTTPS
+    if (legacy_port, legacy_https) == (port, use_https):
+        # User already chose the legacy endpoint; nothing to fall back to.
+        raise CannotConnect
+
+    if await _try_connect(hass, host, legacy_port, legacy_https):
+        return {
+            "title": host,
+            CONF_PORT: legacy_port,
+            CONF_USE_HTTPS: legacy_https,
+        }
+
+    raise CannotConnect
 
 
 class SolplanetConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Solplanet."""
 
     VERSION = 1
-    MINOR_VERSION = 2
+    MINOR_VERSION = 3
 
     @staticmethod
     def async_get_options_flow(
@@ -71,17 +122,30 @@ class SolplanetConfigFlow(ConfigFlow, domain=DOMAIN):
         entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
 
         if user_input is not None:
-            # Update the config entry with new interval
-            new_data = {**entry.data, CONF_INTERVAL: user_input[CONF_INTERVAL]}
+            new_data = {
+                **entry.data,
+                CONF_INTERVAL: user_input[CONF_INTERVAL],
+                CONF_PORT: user_input[CONF_PORT],
+                CONF_USE_HTTPS: user_input[CONF_USE_HTTPS],
+            }
             self.hass.config_entries.async_update_entry(entry, data=new_data)
             await self.hass.config_entries.async_reload(entry.entry_id)
             return self.async_abort(reason="reconfigure_successful")
 
-        # Show form with current interval value
-        current_interval = entry.data.get(CONF_INTERVAL, DEFAULT_INTERVAL)
         schema = vol.Schema(
             {
-                vol.Required(CONF_INTERVAL, default=current_interval): int,
+                vol.Required(
+                    CONF_PORT,
+                    default=entry.data.get(CONF_PORT, DEFAULT_PORT),
+                ): vol.All(int, vol.Range(min=1, max=65535)),
+                vol.Required(
+                    CONF_USE_HTTPS,
+                    default=entry.data.get(CONF_USE_HTTPS, DEFAULT_USE_HTTPS),
+                ): bool,
+                vol.Required(
+                    CONF_INTERVAL,
+                    default=entry.data.get(CONF_INTERVAL, DEFAULT_INTERVAL),
+                ): int,
             }
         )
 
@@ -106,7 +170,9 @@ class SolplanetConfigFlow(ConfigFlow, domain=DOMAIN):
             else:
                 await self.async_set_unique_id(info["title"])
                 self._abort_if_unique_id_configured()
-                return self.async_create_entry(title=info["title"], data=user_input)
+                # Merge auto-detected port/use_https into the persisted data.
+                data = {**user_input, **info}
+                return self.async_create_entry(title=info["title"], data=data)
 
         return self.async_show_form(
             step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
@@ -125,7 +191,6 @@ class SolplanetOptionsFlow(OptionsFlow):
     ) -> ConfigFlowResult:
         """Manage the options."""
         if user_input is not None:
-            # Update the config entry data with new interval
             new_data = {**self.config_entry.data, CONF_INTERVAL: user_input[CONF_INTERVAL]}
             self.hass.config_entries.async_update_entry(
                 self.config_entry, data=new_data
@@ -133,7 +198,6 @@ class SolplanetOptionsFlow(OptionsFlow):
             await self.hass.config_entries.async_reload(self.config_entry.entry_id)
             return self.async_create_entry(title="", data={})
 
-        # Show form with current interval value
         current_interval = self.config_entry.data.get(CONF_INTERVAL, DEFAULT_INTERVAL)
         schema = vol.Schema(
             {

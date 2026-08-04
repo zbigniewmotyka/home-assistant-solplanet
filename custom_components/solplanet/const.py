@@ -11,6 +11,17 @@ SUBMETER_IDENTIFIER = "submeter"
 CONF_INTERVAL = "interval"
 DEFAULT_INTERVAL = 60
 
+# Network: the Ai-Dongle exposes the local API either on HTTP 8484
+# (older firmware) or HTTPS 443 (newer firmware, V610+). The config flow
+# auto-detects which one is reachable on first connection and persists
+# the choice. Users can also override both values manually.
+CONF_PORT = "port"
+CONF_USE_HTTPS = "use_https"
+DEFAULT_PORT = 443
+DEFAULT_USE_HTTPS = True
+LEGACY_PORT = 8484
+LEGACY_USE_HTTPS = False
+
 INVERTER_ERROR_CODES = {
     0: "No error",
     1: "1 - Communication Fails Between M-S",

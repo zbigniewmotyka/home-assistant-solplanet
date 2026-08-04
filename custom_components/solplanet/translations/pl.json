@@ -4,13 +4,17 @@
       "user": {
         "data": {
           "host": "Adres IP / host falownika Solplanet",
+          "port": "Port (443 dla HTTPS, 8484 dla starszego HTTP)",
+          "use_https": "Użyj HTTPS (zalecane dla firmware V610+)",
           "interval": "Odświeżaj dane co (sekundy)"
         }
       },
       "reconfigure": {
         "title": "Rekonfiguruj Solplanet",
-        "description": "Zaktualizuj interwał odpytywania dla tego urządzenia",
+        "description": "Zaktualizuj ustawienia połączenia i interwał odpytywania dla tego urządzenia",
         "data": {
+          "port": "Port (443 dla HTTPS, 8484 dla starszego HTTP)",
+          "use_https": "Użyj HTTPS (zalecane dla firmware V610+)",
           "interval": "Odświeżaj dane co (sekundy)"
         }
       }

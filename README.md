@@ -27,6 +27,13 @@ This information can be used into Home Assistant Energy Dashboard.
 2. Enter the IP address of your Solplanet inverter
 3. The integration will do the rest 😉
 
+The integration auto-detects whether the local API is exposed on
+HTTPS 443 (firmware V610+) or HTTP 8484 (legacy firmware). On firmware
+V610+ Ai-Dongles the local API is only available on HTTPS 443; both
+schemes are accepted automatically. If you need to force a specific
+port or scheme, use the **Reconfigure** option from the integration's
+context menu.
+
 ## Home Assistant Energy Dashboard
 Assign these sensors into the Energy Dashboard
 

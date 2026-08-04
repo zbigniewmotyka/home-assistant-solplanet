@@ -18,9 +18,15 @@ from .client import SolplanetApi, SolplanetClient
 from .const import (
     BATTERY_IDENTIFIER,
     CONF_INTERVAL,
+    CONF_PORT,
+    CONF_USE_HTTPS,
     DEFAULT_INTERVAL,
+    DEFAULT_PORT,
+    DEFAULT_USE_HTTPS,
     DOMAIN,
     INVERTER_IDENTIFIER,
+    LEGACY_PORT,
+    LEGACY_USE_HTTPS,
     MANUFACTURER,
     METER_IDENTIFIER,
     SUBMETER_IDENTIFIER,
@@ -107,7 +113,12 @@ async def async_setup(hass: HomeAssistant, entry: SolplanetConfigEntry) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) -> bool:
     """Set up Solplanet from a config entry."""
 
-    client = SolplanetClient(entry.data[CONF_HOST], async_get_clientsession(hass))
+    client = SolplanetClient(
+        entry.data[CONF_HOST],
+        async_get_clientsession(hass),
+        port=entry.data.get(CONF_PORT, DEFAULT_PORT),
+        use_https=entry.data.get(CONF_USE_HTTPS, DEFAULT_USE_HTTPS),
+    )
     api = SolplanetApi(client)
     entry.runtime_data = api
 
@@ -202,9 +213,16 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
         new_data = {**config_entry.data}
         if config_entry.minor_version < 2:
             new_data[CONF_INTERVAL] = DEFAULT_INTERVAL
+        if config_entry.minor_version < 3:
+            # Pre-port-aware entries were created against the legacy
+            # HTTP 8484 endpoint. Preserve that behaviour on upgrade
+            # so existing installations keep working until users opt
+            # in to HTTPS via reconfigure.
+            new_data[CONF_PORT] = LEGACY_PORT
+            new_data[CONF_USE_HTTPS] = LEGACY_USE_HTTPS
 
         hass.config_entries.async_update_entry(
-            config_entry, data=new_data, minor_version=1, version=1
+            config_entry, data=new_data, minor_version=3, version=1
         )
 
     _LOGGER.debug(

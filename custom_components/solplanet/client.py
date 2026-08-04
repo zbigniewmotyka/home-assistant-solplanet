@@ -677,26 +677,49 @@ class BatterySchedule:
 class SolplanetClient:
     """Solplanet http client."""
 
-    def __init__(self, host: str, session: ClientSession) -> None:
-        """Create instance of solplanet http client."""
+    def __init__(
+        self,
+        host: str,
+        session: ClientSession,
+        *,
+        port: int = 443,
+        use_https: bool = True,
+    ) -> None:
+        """Create instance of solplanet http client.
+
+        The local API is exposed by the Solplanet Ai-Dongle either on
+        HTTP port 8484 (legacy firmware) or HTTPS port 443 (firmware
+        V610+). ``use_https`` selects the scheme and ``port`` lets users
+        override the port when needed.
+        """
         self.host = host
-        self.port = 8484
+        self.port = port
+        self.use_https = use_https
         self.session = session
 
     def get_url(self, endpoint: str) -> str:
         """Get URL for specified endpoint."""
-        return "http://" + self.host + ":" + str(self.port) + "/" + endpoint
+        scheme = "https" if self.use_https else "http"
+        return f"{scheme}://{self.host}:{self.port}/{endpoint}"
 
     async def get(self, endpoint: str):
         """Make get request to specified endpoint."""
+        kwargs: dict[str, Any] = {}
+        # Ai-Dongle uses a self-signed certificate on HTTPS 443.
+        # Disable per-request SSL verification to avoid ClientConnectorCertificateError.
+        if self.use_https:
+            kwargs["ssl"] = False
         return await self._parse_response(
-            await self.session.get(self.get_url(endpoint))
+            await self.session.get(self.get_url(endpoint), **kwargs)
         )
 
     async def post(self, endpoint: str, data: Any):
-        """Make get request to specified endpoint."""
+        """Make post request to specified endpoint."""
+        kwargs: dict[str, Any] = {"json": data}
+        if self.use_https:
+            kwargs["ssl"] = False
         return await self._parse_response(
-            await self.session.post(self.get_url(endpoint), json=data)
+            await self.session.post(self.get_url(endpoint), **kwargs)
         )
 
     async def _parse_response(self, response: ClientResponse):
