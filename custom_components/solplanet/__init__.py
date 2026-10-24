@@ -13,6 +13,9 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import homeassistant.helpers.config_validation as cv
 import homeassistant.helpers.device_registry as dr
+from homeassistant.helpers.typing import ConfigType
+
+from .card_registration import async_register_card, async_unregister_card
 
 from .client import SolplanetApi, SolplanetClient
 from .const import (
@@ -94,13 +97,16 @@ def setup_hass_services(hass: HomeAssistant, api: SolplanetApi) -> None:
     )
 
 
-async def async_setup(hass: HomeAssistant, entry: SolplanetConfigEntry) -> bool:
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the Solplanet integration."""
     hass.data.setdefault(DOMAIN, {})
-    
+
     # Set up services
     await async_setup_services(hass)
-    
+
+    # Serve the bundled Lovelace cards and register them for dashboards (once per HA start)
+    await async_register_card(hass)
+
     return True
 
 
@@ -184,6 +190,19 @@ async def async_unload_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) -
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id)
     return unload_ok
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: SolplanetConfigEntry) -> None:
+    """Remove the cards' dashboard resource when the last entry is deleted.
+
+    Not done on unload: reloading an entry should not make the cards disappear.
+    """
+    if not [
+        e
+        for e in hass.config_entries.async_entries(DOMAIN)
+        if e.entry_id != entry.entry_id
+    ]:
+        await async_unregister_card(hass)
 
 
 async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
