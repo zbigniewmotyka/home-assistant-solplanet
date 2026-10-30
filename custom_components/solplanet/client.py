@@ -10,7 +10,7 @@ import logging
 import time
 from typing import Any
 
-from aiohttp import ClientResponse, ClientSession
+from aiohttp import ClientConnectionError, ClientResponse, ClientSession, ClientTimeout
 
 from .modbus import DataType, ModbusRtuFrameGenerator
 
@@ -677,27 +677,64 @@ class BatterySchedule:
 class SolplanetClient:
     """Solplanet http client."""
 
+    # Older dongles serve plain HTTP on 8484, newer firmware (e.g. ASW-H-T2-DG)
+    # serves HTTPS on 443 with a self-signed certificate.
+    TRANSPORTS = (("http", 8484), ("https", 443))
+    PROBE_TIMEOUT = ClientTimeout(total=10)
+
     def __init__(self, host: str, session: ClientSession) -> None:
         """Create instance of solplanet http client."""
         self.host = host
-        self.port = 8484
         self.session = session
+        self.scheme: str | None = None
+        self.port: int | None = None
 
     def get_url(self, endpoint: str) -> str:
         """Get URL for specified endpoint."""
-        return "http://" + self.host + ":" + str(self.port) + "/" + endpoint
+        return f"{self.scheme}://{self.host}:{self.port}/{endpoint}"
 
     async def get(self, endpoint: str):
         """Make get request to specified endpoint."""
-        return await self._parse_response(
-            await self.session.get(self.get_url(endpoint))
-        )
+        return await self._parse_response(await self._request("GET", endpoint))
 
     async def post(self, endpoint: str, data: Any):
-        """Make get request to specified endpoint."""
+        """Make post request to specified endpoint."""
         return await self._parse_response(
-            await self.session.post(self.get_url(endpoint), json=data)
+            await self._request("POST", endpoint, json=data)
         )
+
+    async def _request(self, method: str, endpoint: str, **kwargs) -> ClientResponse:
+        """Send request, detecting the transport used by the inverter if needed."""
+        if self.scheme is not None:
+            try:
+                return await self._send(method, endpoint, **kwargs)
+            except ClientConnectionError:
+                # Firmware may have been updated, detect transport again next time
+                self.scheme = self.port = None
+                raise
+
+        last_error: Exception | None = None
+        for scheme, port in self.TRANSPORTS:
+            self.scheme, self.port = scheme, port
+            try:
+                response = await self._send(
+                    method, endpoint, timeout=self.PROBE_TIMEOUT, **kwargs
+                )
+            except (ClientConnectionError, TimeoutError) as err:
+                _LOGGER.debug("Inverter not reachable at %s", self.get_url(""), exc_info=err)
+                last_error = err
+                continue
+            _LOGGER.debug("Using %s for inverter %s", self.get_url(""), self.host)
+            return response
+
+        self.scheme = self.port = None
+        raise last_error
+
+    async def _send(self, method: str, endpoint: str, **kwargs) -> ClientResponse:
+        """Send request using the current transport."""
+        if self.scheme == "https":
+            kwargs["ssl"] = False
+        return await self.session.request(method, self.get_url(endpoint), **kwargs)
 
     async def _parse_response(self, response: ClientResponse):
         """Parse response from inverter endpoints."""
