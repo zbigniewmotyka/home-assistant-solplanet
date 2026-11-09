@@ -35,6 +35,8 @@ class SolplanetEntityDescription(EntityDescription):
 class SolplanetEntity(CoordinatorEntity, Entity):
     """Representation of a Solplanet sensor."""
 
+    _solplanet_entity_domain = "sensor"
+
     entity_description: SolplanetEntityDescription
     unique_id_suffix: str
     sanitized_entity_id: str
@@ -60,9 +62,9 @@ class SolplanetEntity(CoordinatorEntity, Entity):
         self._set_native_value()
 
         self.entity_id = (
-            f"sensor.solplanet_{self.sanitized_entity_id}"
+            f"{self._solplanet_entity_domain}.solplanet_{self.sanitized_entity_id}"
             if description.data_field_device_type == INVERTER_IDENTIFIER
-            else f"sensor.solplanet_{self.entity_description.data_field_device_type}_{self.sanitized_entity_id}"
+            else f"{self._solplanet_entity_domain}.solplanet_{self.entity_description.data_field_device_type}_{self.sanitized_entity_id}"
         )
         self._attr_unique_id = (
             f"solplanet_{isn}_{self.unique_id_suffix}"
