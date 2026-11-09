@@ -30,6 +30,8 @@ class SolplanetNumberEntityDescription(
 class SolplanetNumber(SolplanetEntity, NumberEntity):
     """Representation of a Solplanet number."""
 
+    _solplanet_entity_domain = "number"
+
     entity_description: SolplanetNumberEntityDescription
     _attr_native_value: float | None
 
