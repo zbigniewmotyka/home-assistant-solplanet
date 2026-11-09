@@ -39,6 +39,8 @@ class SolplanetSelectEntityDescription(
 class SolplanetSelect(SolplanetEntity, SelectEntity):
     """Representation of a Solplanet sensor."""
 
+    _solplanet_entity_domain = "select"
+
     entity_description: SolplanetSelectEntityDescription
     _attr_native_value: str | None
     _select_options: list[SolplanetSelectOption]
