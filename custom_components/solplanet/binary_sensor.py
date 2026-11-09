@@ -27,6 +27,8 @@ class SolplanetBinarySensorEntityDescription(
 class SolplanetBinarySensor(SolplanetEntity, BinarySensorEntity):
     """Representation of a Solplanet binary sensor."""
 
+    _solplanet_entity_domain = "binary_sensor"
+
     entity_description: SolplanetBinarySensorEntityDescription
 
     def __init__(
